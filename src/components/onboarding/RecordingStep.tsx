@@ -1,8 +1,11 @@
+
 import React, { useState, useRef, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Play, Square, RotateCcw, CheckCircle2, Camera, Mic } from 'lucide-react';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { Label } from '@/components/ui/label';
+import { Play, Square, RotateCcw, CheckCircle2, Camera, Mic, Monitor, Presentation } from 'lucide-react';
 import type { SubmissionData } from '@/pages/Index';
 
 interface RecordingStepProps {
@@ -12,43 +15,159 @@ interface RecordingStepProps {
   updateData: (data: Partial<SubmissionData>) => void;
 }
 
+type RecordingMode = 'camera' | 'screen' | 'both';
+
 const RecordingStep: React.FC<RecordingStepProps> = ({ onNext, onPrev, data, updateData }) => {
   const [isRecording, setIsRecording] = useState(false);
   const [recordedBlob, setRecordedBlob] = useState<Blob | null>(data.videoBlob || null);
   const [recordingTime, setRecordingTime] = useState(0);
-  const [stream, setStream] = useState<MediaStream | null>(null);
+  const [recordingMode, setRecordingMode] = useState<RecordingMode>('camera');
+  const [cameraStream, setCameraStream] = useState<MediaStream | null>(null);
+  const [screenStream, setScreenStream] = useState<MediaStream | null>(null);
   const [error, setError] = useState<string>('');
   
   const videoRef = useRef<HTMLVideoElement>(null);
+  const pipVideoRef = useRef<HTMLVideoElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
+  const animationRef = useRef<number | null>(null);
 
   const startRecording = useCallback(async () => {
     try {
       setError('');
-      const mediaStream = await navigator.mediaDevices.getUserMedia({
-        video: {
-          width: { ideal: 1280 },
-          height: { ideal: 720 },
-          facingMode: 'user'
-        },
-        audio: {
-          echoCancellation: true,
-          noiseSuppression: true
-        }
-      });
+      let finalStream: MediaStream | null = null;
 
-      setStream(mediaStream);
-      if (videoRef.current) {
-        videoRef.current.srcObject = mediaStream;
+      if (recordingMode === 'camera') {
+        // Camera only recording
+        const mediaStream = await navigator.mediaDevices.getUserMedia({
+          video: {
+            width: { ideal: 1280 },
+            height: { ideal: 720 },
+            facingMode: 'user'
+          },
+          audio: {
+            echoCancellation: true,
+            noiseSuppression: true
+          }
+        });
+        
+        setCameraStream(mediaStream);
+        finalStream = mediaStream;
+        
+        if (videoRef.current) {
+          videoRef.current.srcObject = mediaStream;
+        }
+      } else if (recordingMode === 'screen') {
+        // Screen only recording
+        const displayStream = await navigator.mediaDevices.getDisplayMedia({
+          video: {
+            width: { ideal: 1920 },
+            height: { ideal: 1080 }
+          },
+          audio: true
+        });
+        
+        setScreenStream(displayStream);
+        finalStream = displayStream;
+        
+        if (videoRef.current) {
+          videoRef.current.srcObject = displayStream;
+        }
+      } else if (recordingMode === 'both') {
+        // Picture-in-picture recording (screen + camera)
+        const [displayStream, cameraStreamLocal] = await Promise.all([
+          navigator.mediaDevices.getDisplayMedia({
+            video: {
+              width: { ideal: 1920 },
+              height: { ideal: 1080 }
+            },
+            audio: true
+          }),
+          navigator.mediaDevices.getUserMedia({
+            video: {
+              width: { ideal: 320 },
+              height: { ideal: 240 },
+              facingMode: 'user'
+            },
+            audio: {
+              echoCancellation: true,
+              noiseSuppression: true
+            }
+          })
+        ]);
+
+        setScreenStream(displayStream);
+        setCameraStream(cameraStreamLocal);
+
+        // Set up canvas for compositing
+        const canvas = canvasRef.current!;
+        const ctx = canvas.getContext('2d')!;
+        canvas.width = 1920;
+        canvas.height = 1080;
+
+        // Create video elements for compositing
+        const screenVideo = document.createElement('video');
+        const cameraVideo = document.createElement('video');
+        
+        screenVideo.srcObject = displayStream;
+        cameraVideo.srcObject = cameraStreamLocal;
+        
+        await Promise.all([
+          new Promise(resolve => { screenVideo.onloadedmetadata = resolve; screenVideo.play(); }),
+          new Promise(resolve => { cameraVideo.onloadedmetadata = resolve; cameraVideo.play(); })
+        ]);
+
+        // Set up PiP preview
+        if (videoRef.current) {
+          videoRef.current.srcObject = displayStream;
+        }
+        if (pipVideoRef.current) {
+          pipVideoRef.current.srcObject = cameraStreamLocal;
+        }
+
+        // Composite the streams
+        const drawFrame = () => {
+          // Draw screen capture
+          ctx.drawImage(screenVideo, 0, 0, canvas.width, canvas.height);
+          
+          // Draw camera in corner (320x240 at bottom-right with 20px margin)
+          const pipWidth = 320;
+          const pipHeight = 240;
+          const margin = 20;
+          
+          ctx.drawImage(
+            cameraVideo,
+            canvas.width - pipWidth - margin,
+            canvas.height - pipHeight - margin,
+            pipWidth,
+            pipHeight
+          );
+          
+          if (isRecording) {
+            animationRef.current = requestAnimationFrame(drawFrame);
+          }
+        };
+        
+        drawFrame();
+        finalStream = canvas.captureStream(30);
+        
+        // Add audio from both streams
+        const audioTracks = [
+          ...displayStream.getAudioTracks(),
+          ...cameraStreamLocal.getAudioTracks()
+        ];
+        audioTracks.forEach(track => finalStream!.addTrack(track));
       }
+
+      if (!finalStream) return;
 
       const mimeType = MediaRecorder.isTypeSupported('video/webm;codecs=vp9') 
         ? 'video/webm;codecs=vp9' 
         : 'video/mp4';
 
-      const mediaRecorder = new MediaRecorder(mediaStream, { mimeType });
+      const mediaRecorder = new MediaRecorder(finalStream, { mimeType });
 
       mediaRecorderRef.current = mediaRecorder;
       chunksRef.current = [];
@@ -68,6 +187,9 @@ const RecordingStep: React.FC<RecordingStepProps> = ({ onNext, onPrev, data, upd
           videoRef.current.srcObject = null;
           videoRef.current.src = URL.createObjectURL(blob);
         }
+        if (pipVideoRef.current) {
+          pipVideoRef.current.srcObject = null;
+        }
       };
 
       mediaRecorder.start();
@@ -86,10 +208,10 @@ const RecordingStep: React.FC<RecordingStepProps> = ({ onNext, onPrev, data, upd
       }, 1000);
 
     } catch (err) {
-      setError('Could not access camera and microphone. Please check your permissions.');
+      setError('Could not access camera and/or screen. Please check your permissions.');
       console.error('Error accessing media devices:', err);
     }
-  }, [updateData]);
+  }, [updateData, recordingMode, isRecording]);
 
   const stopRecording = useCallback(() => {
     if (mediaRecorderRef.current && isRecording) {
@@ -101,12 +223,22 @@ const RecordingStep: React.FC<RecordingStepProps> = ({ onNext, onPrev, data, upd
         timerRef.current = null;
       }
       
-      if (stream) {
-        stream.getTracks().forEach(track => track.stop());
-        setStream(null);
+      if (animationRef.current) {
+        cancelAnimationFrame(animationRef.current);
+        animationRef.current = null;
       }
+      
+      // Stop all streams
+      [cameraStream, screenStream].forEach(stream => {
+        if (stream) {
+          stream.getTracks().forEach(track => track.stop());
+        }
+      });
+      
+      setCameraStream(null);
+      setScreenStream(null);
     }
-  }, [isRecording, stream]);
+  }, [isRecording, cameraStream, screenStream]);
 
   const resetRecording = useCallback(() => {
     setRecordedBlob(null);
@@ -116,6 +248,9 @@ const RecordingStep: React.FC<RecordingStepProps> = ({ onNext, onPrev, data, upd
     if (videoRef.current) {
       videoRef.current.src = '';
       videoRef.current.srcObject = null;
+    }
+    if (pipVideoRef.current) {
+      pipVideoRef.current.srcObject = null;
     }
   }, [updateData]);
 
@@ -131,7 +266,7 @@ const RecordingStep: React.FC<RecordingStepProps> = ({ onNext, onPrev, data, upd
         <CardHeader className="text-center">
           <CardTitle className="text-2xl font-bold">Record Your Video</CardTitle>
           <p className="text-muted-foreground">
-            Take your time to record a thoughtful response. You can re-record as many times as needed.
+            Choose your recording mode and create a thoughtful response. Perfect for presentations or face-to-face communication.
           </p>
         </CardHeader>
         
@@ -142,6 +277,50 @@ const RecordingStep: React.FC<RecordingStepProps> = ({ onNext, onPrev, data, upd
             </Alert>
           )}
 
+          {/* Recording Mode Selection */}
+          {!isRecording && !recordedBlob && (
+            <div className="space-y-4">
+              <h3 className="text-lg font-semibold">Choose Recording Mode</h3>
+              <RadioGroup 
+                value={recordingMode} 
+                onValueChange={(value) => setRecordingMode(value as RecordingMode)}
+                className="grid grid-cols-1 md:grid-cols-3 gap-4"
+              >
+                <div className="flex items-center space-x-2 p-4 border rounded-lg hover:bg-gray-50">
+                  <RadioGroupItem value="camera" id="camera" />
+                  <Label htmlFor="camera" className="flex items-center gap-2 cursor-pointer">
+                    <Camera className="h-5 w-5" />
+                    <div>
+                      <div className="font-medium">Camera Only</div>
+                      <div className="text-sm text-muted-foreground">Traditional video recording</div>
+                    </div>
+                  </Label>
+                </div>
+                <div className="flex items-center space-x-2 p-4 border rounded-lg hover:bg-gray-50">
+                  <RadioGroupItem value="screen" id="screen" />
+                  <Label htmlFor="screen" className="flex items-center gap-2 cursor-pointer">
+                    <Monitor className="h-5 w-5" />
+                    <div>
+                      <div className="font-medium">Screen Only</div>
+                      <div className="text-sm text-muted-foreground">Record your screen/presentation</div>
+                    </div>
+                  </Label>
+                </div>
+                <div className="flex items-center space-x-2 p-4 border rounded-lg hover:bg-gray-50">
+                  <RadioGroupItem value="both" id="both" />
+                  <Label htmlFor="both" className="flex items-center gap-2 cursor-pointer">
+                    <Presentation className="h-5 w-5" />
+                    <div>
+                      <div className="font-medium">Screen + Camera</div>
+                      <div className="text-sm text-muted-foreground">Presentation with you in corner</div>
+                    </div>
+                  </Label>
+                </div>
+              </RadioGroup>
+            </div>
+          )}
+
+          {/* Video Preview Area */}
           <div className="relative bg-black rounded-lg overflow-hidden aspect-video max-w-2xl mx-auto">
             <video
               ref={videoRef}
@@ -151,10 +330,25 @@ const RecordingStep: React.FC<RecordingStepProps> = ({ onNext, onPrev, data, upd
               className="w-full h-full object-cover"
             />
             
-            {!stream && !recordedBlob && (
+            {/* Picture-in-Picture overlay for camera when recording both */}
+            {recordingMode === 'both' && (cameraStream || isRecording) && (
+              <div className="absolute bottom-4 right-4 w-32 h-24 border-2 border-white rounded-lg overflow-hidden">
+                <video
+                  ref={pipVideoRef}
+                  autoPlay
+                  muted
+                  playsInline
+                  className="w-full h-full object-cover"
+                />
+              </div>
+            )}
+            
+            {!cameraStream && !screenStream && !recordedBlob && (
               <div className="absolute inset-0 flex items-center justify-center bg-gray-900">
                 <div className="text-center text-white">
-                  <Camera className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                  {recordingMode === 'camera' && <Camera className="h-12 w-12 mx-auto mb-4 opacity-50" />}
+                  {recordingMode === 'screen' && <Monitor className="h-12 w-12 mx-auto mb-4 opacity-50" />}
+                  {recordingMode === 'both' && <Presentation className="h-12 w-12 mx-auto mb-4 opacity-50" />}
                   <p className="text-lg">Click "Start Recording" to begin</p>
                 </div>
               </div>
@@ -174,6 +368,10 @@ const RecordingStep: React.FC<RecordingStepProps> = ({ onNext, onPrev, data, upd
             )}
           </div>
 
+          {/* Hidden canvas for compositing */}
+          <canvas ref={canvasRef} className="hidden" />
+
+          {/* Recording Controls */}
           <div className="flex justify-center gap-4">
             {!isRecording && !recordedBlob && (
               <Button
@@ -181,7 +379,9 @@ const RecordingStep: React.FC<RecordingStepProps> = ({ onNext, onPrev, data, upd
                 size="lg"
                 className="bg-red-600 hover:bg-red-700 text-white px-8"
               >
-                <Camera className="h-5 w-5 mr-2" />
+                {recordingMode === 'camera' && <Camera className="h-5 w-5 mr-2" />}
+                {recordingMode === 'screen' && <Monitor className="h-5 w-5 mr-2" />}
+                {recordingMode === 'both' && <Presentation className="h-5 w-5 mr-2" />}
                 Start Recording
               </Button>
             )}
@@ -240,11 +440,11 @@ const RecordingStep: React.FC<RecordingStepProps> = ({ onNext, onPrev, data, upd
             <div className="flex items-start gap-3">
               <Mic className="h-5 w-5 text-blue-600 mt-0.5" />
               <div>
-                <h4 className="font-medium text-blue-800 mb-2">Quick Reminders:</h4>
+                <h4 className="font-medium text-blue-800 mb-2">Recording Tips:</h4>
                 <ul className="text-sm text-blue-700 space-y-1">
-                  <li>• Speak clearly and at a moderate pace</li>
-                  <li>• Address the camera directly, as if talking to a colleague</li>
-                  <li>• Feel free to pause and gather your thoughts</li>
+                  <li>• <strong>Camera:</strong> Traditional face-to-face recording</li>
+                  <li>• <strong>Screen:</strong> Perfect for presentations and demos</li>
+                  <li>• <strong>Both:</strong> Present with your face in the corner</li>
                   <li>• Maximum recording time is 2 minutes</li>
                 </ul>
               </div>

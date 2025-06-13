@@ -1,14 +1,13 @@
 
-import React, { useState, useRef } from 'react';
+import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Checkbox } from '@/components/ui/checkbox';
-import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Slider } from '@/components/ui/slider';
-import { Play, Pause, Upload, CheckCircle2, Mail, User } from 'lucide-react';
+import { Upload } from 'lucide-react';
 import type { SubmissionData } from '@/pages/Index';
+import VideoPreview from './VideoPreview';
+import QualityChecklist from './QualityChecklist';
+import ContactInformation from './ContactInformation';
+import SubmissionStatus from './SubmissionStatus';
 
 interface ReviewStepProps {
   onNext: () => void;
@@ -17,19 +16,21 @@ interface ReviewStepProps {
   updateData: (data: Partial<SubmissionData>) => void;
 }
 
+interface ChecklistState {
+  audioVisual: boolean;
+  questionsAddressed: boolean;
+  timeLimit: boolean;
+}
+
 const ReviewStep: React.FC<ReviewStepProps> = ({ onNext, onPrev, data, updateData }) => {
-  const [checklist, setChecklist] = useState({
+  const [checklist, setChecklist] = useState<ChecklistState>({
     audioVisual: false,
     questionsAddressed: false,
     timeLimit: false
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [currentTime, setCurrentTime] = useState(0);
-  const [duration, setDuration] = useState(0);
-  const videoRef = useRef<HTMLVideoElement>(null);
 
-  const handleChecklistChange = (key: keyof typeof checklist, checked: boolean) => {
+  const handleChecklistChange = (key: keyof ChecklistState, checked: boolean) => {
     setChecklist(prev => ({ ...prev, [key]: checked }));
   };
 
@@ -48,42 +49,6 @@ const ReviewStep: React.FC<ReviewStepProps> = ({ onNext, onPrev, data, updateDat
     onNext();
   };
 
-  const togglePlayPause = () => {
-    if (videoRef.current) {
-      if (isPlaying) {
-        videoRef.current.pause();
-      } else {
-        videoRef.current.play();
-      }
-      setIsPlaying(!isPlaying);
-    }
-  };
-
-  const handleTimeUpdate = () => {
-    if (videoRef.current) {
-      setCurrentTime(videoRef.current.currentTime);
-    }
-  };
-
-  const handleLoadedMetadata = () => {
-    if (videoRef.current) {
-      setDuration(videoRef.current.duration);
-    }
-  };
-
-  const handleSliderChange = (value: number[]) => {
-    if (videoRef.current) {
-      videoRef.current.currentTime = value[0];
-      setCurrentTime(value[0]);
-    }
-  };
-
-  const formatTime = (time: number) => {
-    const minutes = Math.floor(time / 60);
-    const seconds = Math.floor(time % 60);
-    return `${minutes}:${seconds.toString().padStart(2, '0')}`;
-  };
-
   return (
     <div className="max-w-4xl mx-auto">
       <Card className="border-0 shadow-xl bg-white/95 backdrop-blur">
@@ -95,161 +60,24 @@ const ReviewStep: React.FC<ReviewStepProps> = ({ onNext, onPrev, data, updateDat
         </CardHeader>
         
         <CardContent className="space-y-8">
-          {/* Video Preview */}
-          <div className="space-y-4">
-            <h3 className="text-lg font-semibold flex items-center gap-2">
-              <Play className="h-5 w-5" />
-              Video Preview
-            </h3>
-            
-            {data.videoBlob ? (
-              <div className="space-y-4">
-                <div className="relative bg-black rounded-lg overflow-hidden aspect-video max-w-2xl mx-auto">
-                  <video
-                    ref={videoRef}
-                    src={URL.createObjectURL(data.videoBlob)}
-                    className="w-full h-full object-cover"
-                    onTimeUpdate={handleTimeUpdate}
-                    onLoadedMetadata={handleLoadedMetadata}
-                    onPlay={() => setIsPlaying(true)}
-                    onPause={() => setIsPlaying(false)}
-                  />
-                </div>
-                
-                {/* Custom Video Controls */}
-                <div className="max-w-2xl mx-auto space-y-3">
-                  <div className="flex items-center gap-4">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={togglePlayPause}
-                      className="flex items-center gap-2"
-                    >
-                      {isPlaying ? (
-                        <Pause className="h-4 w-4" />
-                      ) : (
-                        <Play className="h-4 w-4" />
-                      )}
-                      {isPlaying ? 'Pause' : 'Play'}
-                    </Button>
-                    
-                    <div className="flex-1 flex items-center gap-3">
-                      <span className="text-sm text-muted-foreground min-w-[40px]">
-                        {formatTime(currentTime)}
-                      </span>
-                      <Slider
-                        value={[currentTime]}
-                        max={duration || 100}
-                        step={0.1}
-                        onValueChange={handleSliderChange}
-                        className="flex-1"
-                      />
-                      <span className="text-sm text-muted-foreground min-w-[40px]">
-                        {formatTime(duration)}
-                      </span>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            ) : (
-              <Alert className="border-amber-200 bg-amber-50">
-                <AlertDescription className="text-amber-800">
-                  No video recorded. Please go back to record your video.
-                </AlertDescription>
-              </Alert>
-            )}
-          </div>
+          <VideoPreview videoBlob={data.videoBlob} />
 
-          {/* Quality Checklist */}
-          <div className="space-y-4">
-            <h3 className="text-lg font-semibold">Quality Checklist</h3>
-            <div className="space-y-3">
-              {[
-                { 
-                  key: 'audioVisual', 
-                  label: 'Clear audio and visuals', 
-                  description: 'Video is well-lit, audio is clear, and you are properly framed' 
-                },
-                { 
-                  key: 'questionsAddressed', 
-                  label: 'All questions addressed', 
-                  description: 'You have covered your technology use, teaching innovations, and collaborations' 
-                },
-                { 
-                  key: 'timeLimit', 
-                  label: 'Within time limit', 
-                  description: 'Video is 2 minutes or less in duration' 
-                }
-              ].map((item) => (
-                <div key={item.key} className="flex items-start space-x-3 p-3 border rounded-lg">
-                  <Checkbox
-                    id={item.key}
-                    checked={checklist[item.key as keyof typeof checklist]}
-                    onCheckedChange={(checked) => handleChecklistChange(item.key as keyof typeof checklist, checked as boolean)}
-                    className="mt-1"
-                  />
-                  <div>
-                    <Label htmlFor={item.key} className="font-medium text-base cursor-pointer">
-                      {item.label}
-                    </Label>
-                    <p className="text-sm text-muted-foreground">{item.description}</p>
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
+          <QualityChecklist 
+            checklist={checklist}
+            onChecklistChange={handleChecklistChange}
+          />
 
-          {/* Contact Information */}
-          <div className="space-y-4">
-            <h3 className="text-lg font-semibold">Contact Information</h3>
-            <div className="grid gap-4 md:grid-cols-2">
-              <div className="space-y-2">
-                <Label htmlFor="reviewFirstName" className="flex items-center gap-2">
-                  <User className="h-4 w-4" />
-                  First Name *
-                </Label>
-                <Input
-                  id="reviewFirstName"
-                  type="text"
-                  value={data.firstName}
-                  onChange={(e) => updateData({ firstName: e.target.value })}
-                  required
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="email" className="flex items-center gap-2">
-                  <Mail className="h-4 w-4" />
-                  Email Address *
-                </Label>
-                <Input
-                  id="email"
-                  type="email"
-                  placeholder="your.email@rmit.edu.au"
-                  value={data.email}
-                  onChange={(e) => updateData({ email: e.target.value })}
-                  required
-                />
-              </div>
-            </div>
-          </div>
+          <ContactInformation
+            firstName={data.firstName}
+            email={data.email}
+            onFirstNameChange={(value) => updateData({ firstName: value })}
+            onEmailChange={(value) => updateData({ email: value })}
+          />
 
-          {/* Submission Status */}
-          {!isFormValid && (
-            <Alert className="border-amber-200 bg-amber-50">
-              <AlertDescription className="text-amber-800">
-                Please complete all required fields and confirm the quality checklist items above.
-              </AlertDescription>
-            </Alert>
-          )}
-
-          {isSubmitting && (
-            <Alert className="border-blue-200 bg-blue-50">
-              <AlertDescription className="text-blue-800 flex items-center gap-2">
-                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-600"></div>
-                Uploading your video... Please wait.
-              </AlertDescription>
-            </Alert>
-          )}
+          <SubmissionStatus 
+            isFormValid={isFormValid}
+            isSubmitting={isSubmitting}
+          />
 
           <div className="flex justify-between pt-4">
             <Button variant="outline" onClick={onPrev} disabled={isSubmitting} className="px-8">

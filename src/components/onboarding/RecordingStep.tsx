@@ -1,4 +1,3 @@
-
 import React, { useState, useRef, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -45,9 +44,11 @@ const RecordingStep: React.FC<RecordingStepProps> = ({ onNext, onPrev, data, upd
         videoRef.current.srcObject = mediaStream;
       }
 
-      const mediaRecorder = new MediaRecorder(mediaStream, {
-        mimeType: 'video/webm;codecs=vp9' || 'video/mp4'
-      });
+      const mimeType = MediaRecorder.isTypeSupported('video/webm;codecs=vp9') 
+        ? 'video/webm;codecs=vp9' 
+        : 'video/mp4';
+
+      const mediaRecorder = new MediaRecorder(mediaStream, { mimeType });
 
       mediaRecorderRef.current = mediaRecorder;
       chunksRef.current = [];

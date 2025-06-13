@@ -35,7 +35,7 @@ const ReviewStep: React.FC<ReviewStepProps> = ({ onNext, onPrev, data, updateDat
   };
 
   const isFormValid = data.firstName.trim() && data.email.trim() && 
-                     Object.values(checklist).every(Boolean) && data.videoBlob;
+                     Object.values(checklist).every(Boolean) && !!data.videoBlob;
 
   const handleSubmit = async () => {
     if (!isFormValid) return;

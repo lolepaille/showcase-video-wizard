@@ -1,12 +1,13 @@
 
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Play, Upload, CheckCircle2, Mail, User } from 'lucide-react';
+import { Slider } from '@/components/ui/slider';
+import { Play, Pause, Upload, CheckCircle2, Mail, User } from 'lucide-react';
 import type { SubmissionData } from '@/pages/Index';
 
 interface ReviewStepProps {
@@ -23,6 +24,10 @@ const ReviewStep: React.FC<ReviewStepProps> = ({ onNext, onPrev, data, updateDat
     timeLimit: false
   });
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [currentTime, setCurrentTime] = useState(0);
+  const [duration, setDuration] = useState(0);
+  const videoRef = useRef<HTMLVideoElement>(null);
 
   const handleChecklistChange = (key: keyof typeof checklist, checked: boolean) => {
     setChecklist(prev => ({ ...prev, [key]: checked }));
@@ -41,6 +46,42 @@ const ReviewStep: React.FC<ReviewStepProps> = ({ onNext, onPrev, data, updateDat
     
     setIsSubmitting(false);
     onNext();
+  };
+
+  const togglePlayPause = () => {
+    if (videoRef.current) {
+      if (isPlaying) {
+        videoRef.current.pause();
+      } else {
+        videoRef.current.play();
+      }
+      setIsPlaying(!isPlaying);
+    }
+  };
+
+  const handleTimeUpdate = () => {
+    if (videoRef.current) {
+      setCurrentTime(videoRef.current.currentTime);
+    }
+  };
+
+  const handleLoadedMetadata = () => {
+    if (videoRef.current) {
+      setDuration(videoRef.current.duration);
+    }
+  };
+
+  const handleSliderChange = (value: number[]) => {
+    if (videoRef.current) {
+      videoRef.current.currentTime = value[0];
+      setCurrentTime(value[0]);
+    }
+  };
+
+  const formatTime = (time: number) => {
+    const minutes = Math.floor(time / 60);
+    const seconds = Math.floor(time % 60);
+    return `${minutes}:${seconds.toString().padStart(2, '0')}`;
   };
 
   return (
@@ -62,12 +103,53 @@ const ReviewStep: React.FC<ReviewStepProps> = ({ onNext, onPrev, data, updateDat
             </h3>
             
             {data.videoBlob ? (
-              <div className="relative bg-black rounded-lg overflow-hidden aspect-video max-w-2xl mx-auto">
-                <video
-                  src={URL.createObjectURL(data.videoBlob)}
-                  controls
-                  className="w-full h-full object-cover"
-                />
+              <div className="space-y-4">
+                <div className="relative bg-black rounded-lg overflow-hidden aspect-video max-w-2xl mx-auto">
+                  <video
+                    ref={videoRef}
+                    src={URL.createObjectURL(data.videoBlob)}
+                    className="w-full h-full object-cover"
+                    onTimeUpdate={handleTimeUpdate}
+                    onLoadedMetadata={handleLoadedMetadata}
+                    onPlay={() => setIsPlaying(true)}
+                    onPause={() => setIsPlaying(false)}
+                  />
+                </div>
+                
+                {/* Custom Video Controls */}
+                <div className="max-w-2xl mx-auto space-y-3">
+                  <div className="flex items-center gap-4">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={togglePlayPause}
+                      className="flex items-center gap-2"
+                    >
+                      {isPlaying ? (
+                        <Pause className="h-4 w-4" />
+                      ) : (
+                        <Play className="h-4 w-4" />
+                      )}
+                      {isPlaying ? 'Pause' : 'Play'}
+                    </Button>
+                    
+                    <div className="flex-1 flex items-center gap-3">
+                      <span className="text-sm text-muted-foreground min-w-[40px]">
+                        {formatTime(currentTime)}
+                      </span>
+                      <Slider
+                        value={[currentTime]}
+                        max={duration || 100}
+                        step={0.1}
+                        onValueChange={handleSliderChange}
+                        className="flex-1"
+                      />
+                      <span className="text-sm text-muted-foreground min-w-[40px]">
+                        {formatTime(duration)}
+                      </span>
+                    </div>
+                  </div>
+                </div>
               </div>
             ) : (
               <Alert className="border-amber-200 bg-amber-50">

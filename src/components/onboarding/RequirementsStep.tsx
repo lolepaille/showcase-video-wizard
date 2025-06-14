@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -41,15 +40,6 @@ const RequirementsStep: React.FC<RequirementsStepProps> = ({ onNext, onPrev }) =
       tips: 'Choose a quiet room. If you have an external microphone, use it for better audio quality.',
       good: 'Clear audio, minimal background noise',
       bad: 'Echo, background noise, muffled audio'
-    },
-    {
-      id: 'orientation',
-      icon: Frame,
-      title: 'Video Orientation',
-      description: 'Landscape mode (horizontal)',
-      tips: 'Hold your device horizontally, not vertically.',
-      good: 'Wide horizontal format',
-      bad: 'Vertical or portrait mode'
     },
     {
       id: 'duration',

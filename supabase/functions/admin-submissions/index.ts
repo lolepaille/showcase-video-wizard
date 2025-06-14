@@ -1,4 +1,3 @@
-
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
@@ -56,37 +55,50 @@ serve(async (req) => {
       console.log('Processing PUT request for submission update');
       
       let body;
+      let bodyParseError = null;
+
+      // Try to parse using req.json(), fallback to req.text()+JSON.parse
       try {
-        const bodyText = await req.text();
-        console.log('Raw request body:', bodyText);
-        body = JSON.parse(bodyText);
-        console.log('Parsed request body:', JSON.stringify(body, null, 2));
-      } catch (parseError) {
-        console.error('Error parsing request body for PUT:', parseError);
+        body = await req.json();
+        console.log('Parsed request body via req.json():', JSON.stringify(body, null, 2));
+      } catch (jsonErr) {
+        // Try text
+        try {
+          const bodyText = await req.text();
+          console.log('Raw request body (fallback .text()):', bodyText);
+          body = JSON.parse(bodyText);
+          console.log('Parsed request body from .text():', JSON.stringify(body, null, 2));
+        } catch (parseErr) {
+          bodyParseError = parseErr;
+        }
+      }
+
+      if (!body || typeof body !== "object" || Array.isArray(body)) {
+        console.error('Error parsing request body for PUT. Invalid or empty body.', bodyParseError);
         return new Response(
-          JSON.stringify({ error: 'Invalid JSON in request body', details: parseError.message }),
-          { 
+          JSON.stringify({ error: 'Invalid JSON in request body', details: bodyParseError?.message || null }),
+          {
             headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-            status: 400 
+            status: 400
           }
         );
       }
-      
+
       const { id, ...updateFields } = body;
       if (!id) {
-        console.error('No submission ID provided for update');
+        console.error('No submission ID provided for update. Request body:', JSON.stringify(body));
         return new Response(
           JSON.stringify({ error: 'Submission ID is required' }),
-          { 
+          {
             headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-            status: 400 
+            status: 400
           }
         );
       }
 
       // Only allow specific fields to be updated
       const allowedFields = [
-        'full_name', 'email', 'title', 'cluster', 
+        'full_name', 'email', 'title', 'cluster',
         'profile_picture_url', 'video_url', 'notes', 'is_published'
       ];
       
@@ -203,11 +215,11 @@ serve(async (req) => {
     );
 
   } catch (error) {
-    console.error('Unexpected error in admin-submissions function:', error);
+    console.error('Unexpected error in admin-submissions function:', error, error?.stack || '');
     return new Response(
-      JSON.stringify({ 
-        error: `Internal server error: ${error.message}`, 
-        details: error.stack 
+      JSON.stringify({
+        error: `Internal server error: ${error?.message}`,
+        details: error?.stack || null
       }),
       { 
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },

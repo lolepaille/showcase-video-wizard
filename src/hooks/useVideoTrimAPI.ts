@@ -1,5 +1,6 @@
 
 import { useState } from "react";
+import { supabase } from "@/integrations/supabase/client";
 
 interface TrimVideoParams {
   videoUrl: string;
@@ -9,7 +10,7 @@ interface TrimVideoParams {
 }
 
 /**
- * Makes a call to the Supabase FFmpeg edge function to trim a video.
+ * Makes a call to the Supabase Edge Function to trim a video.
  * Returns a Blob of the trimmed video.
  */
 export function useVideoTrimAPI() {
@@ -24,26 +25,37 @@ export function useVideoTrimAPI() {
   }: TrimVideoParams): Promise<Blob | null> {
     setIsTrimming(true);
     setError(null);
+    
     try {
+      console.log('Starting video trim request:', { videoUrl, start, end });
+      
       const formData = new FormData();
       formData.append("video_url", videoUrl);
       formData.append("start", String(start));
       formData.append("end", String(end));
 
-      // No progress supported for this edge function (could add SSE for big jobs)
-      const resp = await fetch("/functions/v1/trim-video", {
-        method: "POST",
+      // Use the Supabase functions invoke method instead of direct fetch
+      const { data, error: functionError } = await supabase.functions.invoke('trim-video', {
         body: formData,
       });
 
-      if (!resp.ok) {
-        const data = await resp.json().catch(() => ({}));
-        throw new Error(data.error || "Failed to trim video");
+      if (functionError) {
+        console.error('Supabase function error:', functionError);
+        throw new Error(functionError.message || "Failed to trim video");
       }
-      const blob = await resp.blob();
-      return blob;
+
+      // The response should be a blob
+      if (data instanceof Blob) {
+        console.log('Trim successful, received blob of size:', data.size);
+        return data;
+      } else {
+        console.error('Unexpected response type:', typeof data);
+        throw new Error("Invalid response from trim service");
+      }
     } catch (err) {
-      setError((err as Error).message || "Unknown error");
+      console.error('Trim video error:', err);
+      const errorMessage = (err as Error).message || "Unknown error occurred";
+      setError(errorMessage);
       return null;
     } finally {
       setIsTrimming(false);

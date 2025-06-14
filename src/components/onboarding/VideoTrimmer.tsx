@@ -52,10 +52,12 @@ const VideoTrimmer: React.FC<VideoTrimmerProps> = ({
 
   const handleSubmit = async () => {
     setLocalError(null);
-    let actualUrl = src;
-    // If blob, need to upload it first?
-    if (videoBlob && src.startsWith("blob:")) {
-      setLocalError("Direct trimming from local blob is not yet implemented. Please upload first."); // Advanced: upload and pass URL
+    
+    // Use the provided URL or convert blob to URL if needed
+    let actualUrl = videoUrl || src;
+    
+    if (videoBlob && !videoUrl) {
+      setLocalError("Please upload the video to get a URL before trimming.");
       return;
     }
 
@@ -64,15 +66,25 @@ const VideoTrimmer: React.FC<VideoTrimmerProps> = ({
       return;
     }
 
+    if (!actualUrl) {
+      setLocalError("No video URL available for trimming.");
+      return;
+    }
+
+    console.log('Starting trim with URL:', actualUrl);
+    
     const trimmedBlob = await trimVideo({
       videoUrl: actualUrl,
       start,
       end,
     });
+    
     if (trimmedBlob) {
+      console.log('Trim completed successfully');
       onTrimComplete(trimmedBlob);
     } else {
-      setLocalError("Trimming failed.");
+      console.error('Trimming failed - no blob returned');
+      setLocalError("Trimming failed. Please try again.");
     }
   };
 

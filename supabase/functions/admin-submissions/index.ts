@@ -1,3 +1,4 @@
+
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
@@ -56,8 +57,10 @@ serve(async (req) => {
       
       let body;
       try {
-        body = await req.json();
-        console.log('Request body parsed:', JSON.stringify(body, null, 2));
+        const bodyText = await req.text();
+        console.log('Raw request body:', bodyText);
+        body = JSON.parse(bodyText);
+        console.log('Parsed request body:', JSON.stringify(body, null, 2));
       } catch (parseError) {
         console.error('Error parsing request body for PUT:', parseError);
         return new Response(
@@ -69,7 +72,7 @@ serve(async (req) => {
         );
       }
       
-      const { id, ...rest } = body;
+      const { id, ...updateFields } = body;
       if (!id) {
         console.error('No submission ID provided for update');
         return new Response(
@@ -81,26 +84,25 @@ serve(async (req) => {
         );
       }
 
+      // Only allow specific fields to be updated
       const allowedFields = [
         'full_name', 'email', 'title', 'cluster', 
         'profile_picture_url', 'video_url', 'notes', 'is_published'
       ];
+      
       const updateData: Record<string, any> = {};
-      for (const key of allowedFields) {
-        if (key in rest) {
-          updateData[key] = rest[key];
+      for (const [key, value] of Object.entries(updateFields)) {
+        if (allowedFields.includes(key)) {
+          updateData[key] = value;
+        } else {
+          console.warn(`Skipping non-allowed field: ${key}`);
         }
       }
 
-      if (Object.keys(updateData).length === 0 && Object.keys(rest).length > 0) {
-        console.warn(`Update payload for ID ${id} became empty after filtering allowed fields. Original non-id keys in body: ${Object.keys(rest).join(', ')}. Proceeding to add updated_at.`);
-      } else if (Object.keys(updateData).length === 0) {
-         console.warn(`Update payload for ID ${id} is empty (excluding ID). This might be an issue if an update was expected. Proceeding to add updated_at.`);
-      }
-      
+      // Always update the updated_at timestamp
       updateData.updated_at = new Date().toISOString();
 
-      console.log(`Attempting to update submission ID: ${id} with payload: ${JSON.stringify(updateData)}`);
+      console.log(`Updating submission ID: ${id} with data:`, JSON.stringify(updateData, null, 2));
       
       const { data, error: supabaseError } = await supabaseClient
         .from('submissions')
@@ -112,7 +114,10 @@ serve(async (req) => {
       if (supabaseError) {
         console.error(`Supabase error updating submission ID ${id}:`, JSON.stringify(supabaseError, null, 2));
         return new Response(
-          JSON.stringify({ error: `Failed to update submission: ${supabaseError.message}`, details: supabaseError }),
+          JSON.stringify({ 
+            error: `Failed to update submission: ${supabaseError.message}`, 
+            details: supabaseError 
+          }),
           { 
             headers: { ...corsHeaders, 'Content-Type': 'application/json' },
             status: 500 
@@ -198,9 +203,12 @@ serve(async (req) => {
     );
 
   } catch (error) {
-    console.error('Unexpected error in admin-submissions function:', error, error.stack);
+    console.error('Unexpected error in admin-submissions function:', error);
     return new Response(
-      JSON.stringify({ error: `Internal server error: ${error.message}`, details: error.stack }),
+      JSON.stringify({ 
+        error: `Internal server error: ${error.message}`, 
+        details: error.stack 
+      }),
       { 
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         status: 500 

@@ -1,4 +1,3 @@
-
 import React, { useState, useRef, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -28,18 +27,19 @@ const VideoTrimmer: React.FC<VideoTrimmerProps> = ({ videoBlob, onTrimComplete, 
   
   const videoRef = useRef<HTMLVideoElement>(null);
   const videoUrl = useRef<string>('');
+  const mediaRecorderInstanceRef = useRef<MediaRecorder | null>(null);
+  const progressIntervalIdRef = useRef<number | null>(null);
 
   useEffect(() => {
     if (videoBlob && videoRef.current) {
-      // Clean up previous URL
       if (videoUrl.current) {
         URL.revokeObjectURL(videoUrl.current);
+        console.log('VideoTrimmer: Old video URL revoked:', videoUrl.current);
       }
       
-      // Create new URL for the blob
       videoUrl.current = URL.createObjectURL(videoBlob);
+      console.log('VideoTrimmer: New video URL created:', videoUrl.current);
       
-      // Reset states
       setIsLoaded(false);
       setCurrentTime(0);
       setDuration(0);
@@ -47,12 +47,23 @@ const VideoTrimmer: React.FC<VideoTrimmerProps> = ({ videoBlob, onTrimComplete, 
       setEndTime(0);
       setIsPlaying(false);
       setError('');
+      // The VideoPlayer component will set the src and trigger load
     }
 
     return () => {
       if (videoUrl.current) {
+        console.log('VideoTrimmer: Revoking video URL on cleanup:', videoUrl.current);
         URL.revokeObjectURL(videoUrl.current);
+        videoUrl.current = '';
       }
+      if (progressIntervalIdRef.current) {
+        clearInterval(progressIntervalIdRef.current);
+        progressIntervalIdRef.current = null;
+      }
+      if (mediaRecorderInstanceRef.current && mediaRecorderInstanceRef.current.state !== 'inactive') {
+        mediaRecorderInstanceRef.current.stop();
+      }
+      mediaRecorderInstanceRef.current = null;
     };
   }, [videoBlob]);
 
@@ -63,8 +74,40 @@ const VideoTrimmer: React.FC<VideoTrimmerProps> = ({ videoBlob, onTrimComplete, 
         setDuration(dur);
         setEndTime(dur);
         setIsLoaded(true);
-        console.log('Video loaded successfully, duration:', dur);
+        setError(''); // Clear previous errors on successful load
+        console.log('VideoTrimmer: Video loaded successfully, duration:', dur);
+      } else {
+        console.error('VideoTrimmer: Invalid duration detected on load:', dur, 'Video URL:', videoUrl.current);
+        setError(`Failed to load video metadata. The video duration is invalid (reported: ${dur}). Please try re-recording or using a different video.`);
+        setIsLoaded(false);
+        setDuration(0);
+        setEndTime(0);
       }
+    }
+  };
+
+  const handleVideoError = (event: React.SyntheticEvent<HTMLVideoElement, Event>) => {
+    const videoElement = event.currentTarget;
+    let errorMsg = 'An unknown video error occurred.';
+    if (videoElement.error) {
+      switch (videoElement.error.code) {
+        case videoElement.error.MEDIA_ERR_ABORTED: errorMsg = 'Video playback aborted by user or script.'; break;
+        case videoElement.error.MEDIA_ERR_NETWORK: errorMsg = 'A network error caused the video download to fail part-way.'; break;
+        case videoElement.error.MEDIA_ERR_DECODE: errorMsg = 'Video playback aborted due to a corruption problem or because the video used features your browser did not support.'; break;
+        case videoElement.error.MEDIA_ERR_SRC_NOT_SUPPORTED: errorMsg = 'The video could not be loaded, either because the server or network failed or because the format is not supported.'; break;
+        default: errorMsg = `An unknown video error occurred (code: ${videoElement.error.code}).`;
+      }
+    }
+    console.error('VideoTrimmer: Video element error event:', errorMsg, videoElement.error);
+    setError(errorMsg + ' Please try re-recording, using a different video, or check your network connection.');
+    setIsLoaded(false);
+    setIsTrimming(false);
+    if (mediaRecorderInstanceRef.current && mediaRecorderInstanceRef.current.state !== 'inactive') {
+      mediaRecorderInstanceRef.current.stop();
+    }
+    if (progressIntervalIdRef.current) {
+      clearInterval(progressIntervalIdRef.current);
+      progressIntervalIdRef.current = null;
     }
   };
 
@@ -74,7 +117,6 @@ const VideoTrimmer: React.FC<VideoTrimmerProps> = ({ videoBlob, onTrimComplete, 
       if (isFinite(time)) {
         setCurrentTime(time);
         
-        // Auto-pause at end time during preview
         if (time >= endTime && isPlaying) {
           videoRef.current.pause();
           setIsPlaying(false);
@@ -88,11 +130,13 @@ const VideoTrimmer: React.FC<VideoTrimmerProps> = ({ videoBlob, onTrimComplete, 
       if (isPlaying) {
         videoRef.current.pause();
       } else {
-        // Jump to start time if we're not in the selected range
         if (currentTime < startTime || currentTime >= endTime) {
           videoRef.current.currentTime = startTime;
         }
-        videoRef.current.play().catch(console.error);
+        videoRef.current.play().catch(err => {
+          console.error("VideoTrimmer: Error toggling play/pause:", err);
+          handleVideoError(err); // Use a generic event or adapt handleVideoError
+        });
       }
     }
   };
@@ -101,8 +145,8 @@ const VideoTrimmer: React.FC<VideoTrimmerProps> = ({ videoBlob, onTrimComplete, 
   const handlePause = () => setIsPlaying(false);
 
   const handleStartTimeChange = (value: number[]) => {
-    const newStart = Math.min(value[0], endTime - 0.1);
-    setStartTime(newStart);
+    const newStart = Math.min(value[0], endTime - 0.1); // Ensure start is less than end
+    setStartTime(Math.max(0, newStart)); // Ensure start is not negative
     
     if (videoRef.current && currentTime < newStart) {
       videoRef.current.currentTime = newStart;
@@ -110,8 +154,8 @@ const VideoTrimmer: React.FC<VideoTrimmerProps> = ({ videoBlob, onTrimComplete, 
   };
 
   const handleEndTimeChange = (value: number[]) => {
-    const newEnd = Math.max(value[0], startTime + 0.1);
-    setEndTime(newEnd);
+    const newEnd = Math.max(value[0], startTime + 0.1); // Ensure end is greater than start
+    setEndTime(Math.min(duration, newEnd)); // Ensure end does not exceed duration
     
     if (videoRef.current && currentTime > newEnd) {
       videoRef.current.currentTime = newEnd;
@@ -127,46 +171,91 @@ const VideoTrimmer: React.FC<VideoTrimmerProps> = ({ videoBlob, onTrimComplete, 
   };
 
   const trimVideo = async () => {
-    if (!videoRef.current || !isLoaded) return;
+    if (!videoRef.current || !isLoaded) {
+      setError('Video not loaded or ready. Cannot trim.');
+      console.error('VideoTrimmer: trimVideo called but video not ready. isLoaded:', isLoaded);
+      return;
+    }
+
+    if (!isFinite(duration) || duration <= 0) {
+      setError('Video duration is invalid. Cannot trim.');
+      console.error('VideoTrimmer: Invalid duration before trimming:', duration);
+      return;
+    }
+    if (!isFinite(startTime) || startTime < 0 || startTime >= duration) {
+      setError('Invalid start time for trimming.');
+      console.error('VideoTrimmer: Invalid start time:', startTime, 'Duration:', duration);
+      return;
+    }
+    if (!isFinite(endTime) || endTime <= startTime || endTime > duration) {
+      setError('Invalid end time for trimming.');
+      console.error('VideoTrimmer: Invalid end time:', endTime, 'Duration:', duration, 'Start time:', startTime);
+      return;
+    }
+
+    const calculatedTrimDuration = endTime - startTime;
+    if (calculatedTrimDuration < 0.1) { // Minimum trim duration
+        setError('Trim duration is too short (min 0.1s).');
+        console.error('VideoTrimmer: Invalid calculatedTrimDuration:', calculatedTrimDuration);
+        return;
+    }
 
     setIsTrimming(true);
     setTrimProgress(0);
     setError('');
     
     try {
-      console.log('Starting video trim process...');
+      console.log('VideoTrimmer: Starting video trim process...');
       
-      // Use a simpler approach with MediaRecorder
       const video = videoRef.current;
       const canvas = document.createElement('canvas');
-      const ctx = canvas.getContext('2d')!;
+      const ctx = canvas.getContext('2d');
+
+      if (!ctx) {
+        setError('Failed to get canvas context for trimming.');
+        setIsTrimming(false);
+        return;
+      }
       
-      // Set canvas dimensions to match video
       canvas.width = video.videoWidth || 640;
       canvas.height = video.videoHeight || 480;
       
-      console.log('Canvas dimensions:', canvas.width, 'x', canvas.height);
+      if (canvas.width === 0 || canvas.height === 0) {
+        console.error('VideoTrimmer: Video dimensions are zero. videoWidth:', video.videoWidth, 'videoHeight:', video.videoHeight);
+        setError('Video dimensions are invalid. Cannot trim.');
+        setIsTrimming(false);
+        return;
+      }
+      console.log('VideoTrimmer: Canvas dimensions for trimming:', canvas.width, 'x', canvas.height);
       
-      // Create a stream from canvas
-      const stream = canvas.captureStream(30);
+      const stream = canvas.captureStream(30); // 30 FPS
       
-      // Try to add audio track if the original video has audio
       try {
-        const audioContext = new AudioContext();
-        const source = audioContext.createMediaElementSource(video);
-        const destination = audioContext.createMediaStreamDestination();
-        source.connect(destination);
-        
-        destination.stream.getAudioTracks().forEach(track => {
-          stream.addTrack(track);
-        });
+        if (video.srcObject && (video.srcObject as MediaStream).getAudioTracks().length > 0) {
+           (video.srcObject as MediaStream).getAudioTracks().forEach(track => stream.addTrack(track.clone()));
+        } else if (videoRef.current.src && videoRef.current.mozHasAudio !== false && videoRef.current.webkitAudioDecodedByteCount !== undefined) { // Heuristics for audio in src URL
+            const audioContext = new AudioContext();
+            const sourceNode = audioContext.createMediaElementSource(video);
+            const destNode = audioContext.createMediaStreamDestination();
+            sourceNode.connect(destNode);
+            destNode.stream.getAudioTracks().forEach(track => stream.addTrack(track));
+        }
       } catch (audioError) {
-        console.warn('Could not add audio track:', audioError);
+        console.warn('VideoTrimmer: Could not add audio track to trimmed video:', audioError);
       }
       
-      const mediaRecorder = new MediaRecorder(stream, {
-        mimeType: 'video/webm;codecs=vp9'
-      });
+      let mimeTypeToUse = 'video/webm;codecs=vp9';
+      if (!MediaRecorder.isTypeSupported(mimeTypeToUse)) mimeTypeToUse = 'video/webm;codecs=vp8';
+      if (!MediaRecorder.isTypeSupported(mimeTypeToUse)) mimeTypeToUse = 'video/webm';
+      if (!MediaRecorder.isTypeSupported(mimeTypeToUse)) {
+          setError('Your browser does not support required video recording formats for trimming.');
+          setIsTrimming(false);
+          return;
+      }
+      console.log("VideoTrimmer: Using mimeType: ", mimeTypeToUse);
+
+      const mediaRecorder = new MediaRecorder(stream, { mimeType: mimeTypeToUse });
+      mediaRecorderInstanceRef.current = mediaRecorder;
       
       const chunks: Blob[] = [];
       
@@ -177,72 +266,170 @@ const VideoTrimmer: React.FC<VideoTrimmerProps> = ({ videoBlob, onTrimComplete, 
       };
       
       mediaRecorder.onstop = () => {
-        console.log('MediaRecorder stopped, creating blob...');
-        const trimmedBlob = new Blob(chunks, { type: 'video/webm' });
-        onTrimComplete(trimmedBlob);
+        console.log('VideoTrimmer: MediaRecorder stopped, creating blob...');
+        if (progressIntervalIdRef.current) {
+          clearInterval(progressIntervalIdRef.current);
+          progressIntervalIdRef.current = null;
+        }
+        if (chunks.length > 0) {
+            const trimmedBlob = new Blob(chunks, { type: mimeTypeToUse });
+            onTrimComplete(trimmedBlob);
+        } else {
+            setError('Trimming resulted in an empty video. Please try again.');
+            console.error('VideoTrimmer: No data chunks recorded.');
+        }
         setIsTrimming(false);
-        setTrimProgress(100);
+        setTrimProgress(100); // Or 0 if error
+        mediaRecorderInstanceRef.current = null;
       };
       
       mediaRecorder.onerror = (event) => {
-        console.error('MediaRecorder error:', event);
+        console.error('VideoTrimmer: MediaRecorder error:', event);
+        if (progressIntervalIdRef.current) {
+          clearInterval(progressIntervalIdRef.current);
+          progressIntervalIdRef.current = null;
+        }
         setError('Error during video trimming. Please try again.');
         setIsTrimming(false);
+        mediaRecorderInstanceRef.current = null;
       };
       
-      // Start recording
       mediaRecorder.start();
-      console.log('MediaRecorder started');
+      console.log('VideoTrimmer: MediaRecorder started');
       
-      // Set video to start time and play
+      video.pause(); // Ensure it's paused before setting currentTime
       video.currentTime = startTime;
+      console.log('VideoTrimmer: Set video currentTime to startTime:', startTime);
       
-      const trimDuration = endTime - startTime;
-      let recordingStartTime = Date.now();
-      
-      video.onseeked = () => {
-        video.play();
-        recordingStartTime = Date.now();
-        
-        // Update progress
-        const progressInterval = setInterval(() => {
-          const elapsed = (Date.now() - recordingStartTime) / 1000;
-          const progress = Math.min((elapsed / trimDuration) * 100, 100);
-          setTrimProgress(progress);
+      video.onseeked = async () => {
+        console.log('VideoTrimmer: Video seeked to startTime.');
+        try {
+          await video.play();
+          console.log('VideoTrimmer: Video playback started for frame capture.');
           
-          // Draw current frame to canvas
-          ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+          let frameCaptureStartTime = Date.now();
           
-          if (elapsed >= trimDuration) {
-            clearInterval(progressInterval);
-            video.pause();
-            mediaRecorder.stop();
+          progressIntervalIdRef.current = setInterval(() => {
+            if (!videoRef.current || !mediaRecorderInstanceRef.current || mediaRecorderInstanceRef.current.state !== 'recording') {
+              if (progressIntervalIdRef.current) clearInterval(progressIntervalIdRef.current);
+              return;
+            }
+
+            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+            
+            const elapsed = (Date.now() - frameCaptureStartTime) / 1000;
+            const progress = Math.min((elapsed / calculatedTrimDuration) * 100, 100);
+            setTrimProgress(progress);
+            
+            // Check video.currentTime as primary, elapsed as fallback
+            if (videoRef.current.currentTime >= endTime || elapsed >= calculatedTrimDuration + 0.5 ) { // Add a small buffer for elapsed
+              if (progressIntervalIdRef.current) clearInterval(progressIntervalIdRef.current);
+              progressIntervalIdRef.current = null;
+              
+              if (videoRef.current) videoRef.current.pause();
+              if (mediaRecorderInstanceRef.current && mediaRecorderInstanceRef.current.state === 'recording') {
+                mediaRecorderInstanceRef.current.stop();
+              }
+              console.log('VideoTrimmer: Trimming duration reached or passed.');
+            }
+          }, Math.floor(1000 / 30)) as unknown as number; // Approx 30fps
+
+        } catch (playError) {
+          console.error('VideoTrimmer: Error starting playback after seek:', playError);
+          setError('Failed to start video playback for trimming.');
+          if (mediaRecorderInstanceRef.current && mediaRecorderInstanceRef.current.state !== 'inactive') {
+            mediaRecorderInstanceRef.current.stop();
           }
-        }, 100);
+          setIsTrimming(false);
+        }
       };
-      
-    } catch (error) {
-      console.error('Error trimming video:', error);
-      setError('Failed to trim video. Please try again.');
+      // Add a timeout for onseeked, in case it never fires
+      const seekTimeout = setTimeout(() => {
+        if (mediaRecorderInstanceRef.current && mediaRecorderInstanceRef.current.state === 'recording' && !progressIntervalIdRef.current) {
+            console.error('VideoTrimmer: Seek operation timed out or did not complete as expected.');
+            setError('Video seeking failed or timed out. Cannot trim.');
+            mediaRecorderInstanceRef.current.stop(); // This will trigger onstop, which should clear interval and set isTrimming false
+            setIsTrimming(false);
+        }
+      }, 5000); // 5 seconds timeout for seek
+
+      // Clear seekTimeout in onseeked or if recorder stops early
+      const originalOnStop = mediaRecorder.onstop;
+      mediaRecorder.onstop = () => {
+        clearTimeout(seekTimeout);
+        if (originalOnStop) originalOnStop();
+      };
+      const originalOnError = mediaRecorder.onerror;
+      mediaRecorder.onerror = (event) => {
+        clearTimeout(seekTimeout);
+        if (originalOnError) originalOnError(event);
+      }
+      if (video.onseeked) {
+          const originalOnSeeked = video.onseeked;
+          video.onseeked = (event) => {
+              clearTimeout(seekTimeout);
+              if (typeof originalOnSeeked === 'function') originalOnSeeked.call(video, event);
+          }
+      }
+
+
+    } catch (trimError) {
+      console.error('VideoTrimmer: Error in trimVideo function:', trimError);
+      setError('Failed to trim video due to an unexpected error. Please try again.');
       setIsTrimming(false);
       setTrimProgress(0);
+      if (mediaRecorderInstanceRef.current && mediaRecorderInstanceRef.current.state !== 'inactive') {
+        mediaRecorderInstanceRef.current.stop();
+      }
+       if (progressIntervalIdRef.current) {
+          clearInterval(progressIntervalIdRef.current);
+          progressIntervalIdRef.current = null;
+        }
     }
   };
 
   const cancelTrimming = () => {
+    console.log('VideoTrimmer: cancelTrimming called.');
+    if (mediaRecorderInstanceRef.current && mediaRecorderInstanceRef.current.state !== 'inactive') {
+      // Detach handlers to prevent them from running after explicit stop
+      mediaRecorderInstanceRef.current.onstop = null;
+      mediaRecorderInstanceRef.current.ondataavailable = null;
+      mediaRecorderInstanceRef.current.onerror = null;
+      mediaRecorderInstanceRef.current.stop();
+      console.log('VideoTrimmer: MediaRecorder stopped by cancelTrimming.');
+    }
+    mediaRecorderInstanceRef.current = null;
+
+    if (progressIntervalIdRef.current) {
+      clearInterval(progressIntervalIdRef.current);
+      progressIntervalIdRef.current = null;
+      console.log('VideoTrimmer: Progress interval cleared by cancelTrimming.');
+    }
+    
+    if (videoRef.current && !videoRef.current.paused) {
+        videoRef.current.pause();
+    }
+
     setIsTrimming(false);
     setTrimProgress(0);
-    setError('');
-    console.log('Video trimming cancelled');
+    // Don't clear error, user might want to see why it was cancelled or what went wrong before
+    // setError(''); 
+    console.log('VideoTrimmer: Video trimming process cancelled by user action.');
   };
 
   const retryTrimming = () => {
+    console.log('VideoTrimmer: Retrying trimming.');
     setError('');
     setTrimProgress(0);
+    // Ensure states are reset before trying again
+    setIsTrimming(false); 
+    if (mediaRecorderInstanceRef.current || progressIntervalIdRef.current) { // If somehow still active
+        cancelTrimming(); // Full cleanup
+    }
     trimVideo();
   };
 
-  const trimmedDuration = endTime - startTime;
+  const trimmedDuration = (isLoaded && duration > 0) ? Math.max(0, endTime - startTime) : 0;
 
   return (
     <Card className="border-0 shadow-xl bg-white/95 backdrop-blur">
@@ -253,7 +440,7 @@ const VideoTrimmer: React.FC<VideoTrimmerProps> = ({ videoBlob, onTrimComplete, 
           <Button
             variant="ghost"
             size="sm"
-            onClick={onCancel}
+            onClick={onCancel} // This is to cancel the whole trimming step, not the active trim operation
             className="ml-auto"
             disabled={isTrimming}
           >
@@ -266,7 +453,7 @@ const VideoTrimmer: React.FC<VideoTrimmerProps> = ({ videoBlob, onTrimComplete, 
       </CardHeader>
       
       <CardContent className="space-y-6">
-        <ErrorDisplay error={error} onRetry={retryTrimming} />
+        <ErrorDisplay error={error} onRetry={isLoaded ? retryTrimming : undefined} />
 
         <div className="relative">
           <VideoPlayer
@@ -280,13 +467,14 @@ const VideoTrimmer: React.FC<VideoTrimmerProps> = ({ videoBlob, onTrimComplete, 
             onLoadedMetadata={handleLoadedMetadata}
             onPlay={handlePlay}
             onPause={handlePause}
+            onVideoError={handleVideoError}
             videoUrl={videoUrl.current}
           />
           
           <TrimProgress
             isVisible={isTrimming}
             progress={trimProgress}
-            onCancel={cancelTrimming}
+            onCancel={cancelTrimming} // This cancels the active trim operation
           />
         </div>
 
@@ -304,11 +492,14 @@ const VideoTrimmer: React.FC<VideoTrimmerProps> = ({ videoBlob, onTrimComplete, 
 
             <VideoTrimmerActions
               trimmedDuration={trimmedDuration}
-              isTrimming={isTrimming}
-              onCancel={onCancel}
+              isTrimming={isTrimming} // This prop might not be needed by VideoTrimmerActions itself
+              onCancel={onCancel} // To cancel the whole step
               onTrimVideo={trimVideo}
             />
           </div>
+        )}
+        {!isLoaded && !error && (
+             <div className="text-center p-4 text-muted-foreground">Loading video preview... If this persists, the video might be corrupted or in an unsupported format.</div>
         )}
       </CardContent>
     </Card>

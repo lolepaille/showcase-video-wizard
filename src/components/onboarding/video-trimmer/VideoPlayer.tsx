@@ -14,6 +14,7 @@ interface VideoPlayerProps {
   onLoadedMetadata: () => void;
   onPlay: () => void;
   onPause: () => void;
+  onVideoError: (event: React.SyntheticEvent<HTMLVideoElement, Event>) => void; // Added
   videoUrl: string;
 }
 
@@ -28,6 +29,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
   onLoadedMetadata,
   onPlay,
   onPause,
+  onVideoError, // Added
   videoUrl
 }) => {
   const formatTime = (time: number) => {
@@ -49,6 +51,7 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
           onLoadedMetadata={onLoadedMetadata}
           onPlay={onPlay}
           onPause={onPause}
+          onError={onVideoError} // Added
           muted
           playsInline
         />
@@ -92,3 +95,4 @@ const VideoPlayer: React.FC<VideoPlayerProps> = ({
 };
 
 export default VideoPlayer;
+

@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Label } from '@/components/ui/label';
-import { Play, Square, RotateCcw, CheckCircle2, Camera, Mic, Monitor, Presentation } from 'lucide-react';
+import { Play, Square, RotateCcw, CheckCircle2, Camera, Mic, Monitor, Presentation, RotateCw, AlertTriangle } from 'lucide-react';
 import type { SubmissionData } from '@/pages/Index';
 import { useIsMobile } from '@/hooks/use-mobile';
 
@@ -26,6 +26,7 @@ const RecordingStep: React.FC<RecordingStepProps> = ({ onNext, onPrev, data, upd
   const [cameraStream, setCameraStream] = useState<MediaStream | null>(null);
   const [screenStream, setScreenStream] = useState<MediaStream | null>(null);
   const [error, setError] = useState<string>('');
+  const [showRotateOverlay, setShowRotateOverlay] = useState(false);
   const isMobile = useIsMobile();
   
   const videoRef = useRef<HTMLVideoElement>(null);
@@ -39,6 +40,7 @@ const RecordingStep: React.FC<RecordingStepProps> = ({ onNext, onPrev, data, upd
   const startRecording = useCallback(async () => {
     try {
       setError('');
+      setShowRotateOverlay(false);
       let finalStream: MediaStream | null = null;
 
       if (recordingMode === 'camera') {
@@ -59,7 +61,7 @@ const RecordingStep: React.FC<RecordingStepProps> = ({ onNext, onPrev, data, upd
         if (isMobile && videoTrack) {
           const settings = videoTrack.getSettings();
           if (settings.width && settings.height && settings.height > settings.width) {
-            setError('Please rotate your device to landscape mode for a better recording.');
+            setShowRotateOverlay(true);
             mediaStream.getTracks().forEach(track => track.stop());
             return;
           }
@@ -114,7 +116,7 @@ const RecordingStep: React.FC<RecordingStepProps> = ({ onNext, onPrev, data, upd
         if (isMobile && cameraVideoTrack) {
           const settings = cameraVideoTrack.getSettings();
           if (settings.width && settings.height && settings.height > settings.width) {
-            setError('Please rotate your device to landscape mode for a better recording.');
+            setShowRotateOverlay(true);
             displayStream.getTracks().forEach(track => track.stop());
             cameraStreamLocal.getTracks().forEach(track => track.stop());
             return;
@@ -365,8 +367,33 @@ const RecordingStep: React.FC<RecordingStepProps> = ({ onNext, onPrev, data, upd
                 />
               </div>
             )}
+
+            {/* Rotate Device Overlay */}
+            {showRotateOverlay && (
+              <div className="absolute inset-0 bg-black/90 flex items-center justify-center z-10">
+                <div className="text-center text-white p-8">
+                  <div className="flex justify-center mb-6">
+                    <div className="relative">
+                      <AlertTriangle className="h-16 w-16 text-amber-400 animate-pulse" />
+                      <RotateCw className="h-8 w-8 text-white absolute -bottom-2 -right-2 animate-spin" />
+                    </div>
+                  </div>
+                  <h3 className="text-2xl font-bold mb-4">Rotate Your Device</h3>
+                  <p className="text-lg mb-6 max-w-sm">
+                    Please rotate your device to landscape mode for the best recording experience.
+                  </p>
+                  <Button 
+                    onClick={() => setShowRotateOverlay(false)}
+                    variant="outline"
+                    className="bg-white/10 border-white/20 text-white hover:bg-white/20"
+                  >
+                    I'll try again
+                  </Button>
+                </div>
+              </div>
+            )}
             
-            {!cameraStream && !screenStream && !recordedBlob && (
+            {!cameraStream && !screenStream && !recordedBlob && !showRotateOverlay && (
               <div className="absolute inset-0 flex items-center justify-center bg-gray-900">
                 <div className="text-center text-white">
                   {recordingMode === 'camera' && <Camera className="h-12 w-12 mx-auto mb-4 opacity-50" />}
@@ -396,7 +423,7 @@ const RecordingStep: React.FC<RecordingStepProps> = ({ onNext, onPrev, data, upd
 
           {/* Recording Controls */}
           <div className="flex justify-center gap-4">
-            {!isRecording && !recordedBlob && (
+            {!isRecording && !recordedBlob && !showRotateOverlay && (
               <Button
                 onClick={startRecording}
                 size="lg"

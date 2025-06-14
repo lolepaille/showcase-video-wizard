@@ -7,6 +7,7 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Label } from '@/components/ui/label';
 import { Play, Square, RotateCcw, CheckCircle2, Camera, Mic, Monitor, Presentation } from 'lucide-react';
 import type { SubmissionData } from '@/pages/Index';
+import { useIsMobile } from '@/hooks/use-mobile';
 
 interface RecordingStepProps {
   onNext: () => void;
@@ -25,6 +26,7 @@ const RecordingStep: React.FC<RecordingStepProps> = ({ onNext, onPrev, data, upd
   const [cameraStream, setCameraStream] = useState<MediaStream | null>(null);
   const [screenStream, setScreenStream] = useState<MediaStream | null>(null);
   const [error, setError] = useState<string>('');
+  const isMobile = useIsMobile();
   
   const videoRef = useRef<HTMLVideoElement>(null);
   const pipVideoRef = useRef<HTMLVideoElement>(null);
@@ -52,6 +54,16 @@ const RecordingStep: React.FC<RecordingStepProps> = ({ onNext, onPrev, data, upd
             noiseSuppression: true
           }
         });
+
+        const videoTrack = mediaStream.getVideoTracks()[0];
+        if (isMobile && videoTrack) {
+          const settings = videoTrack.getSettings();
+          if (settings.width && settings.height && settings.height > settings.width) {
+            setError('Please rotate your device to landscape mode for a better recording.');
+            mediaStream.getTracks().forEach(track => track.stop());
+            return;
+          }
+        }
         
         setCameraStream(mediaStream);
         finalStream = mediaStream;
@@ -97,6 +109,17 @@ const RecordingStep: React.FC<RecordingStepProps> = ({ onNext, onPrev, data, upd
             }
           })
         ]);
+
+        const cameraVideoTrack = cameraStreamLocal.getVideoTracks()[0];
+        if (isMobile && cameraVideoTrack) {
+          const settings = cameraVideoTrack.getSettings();
+          if (settings.width && settings.height && settings.height > settings.width) {
+            setError('Please rotate your device to landscape mode for a better recording.');
+            displayStream.getTracks().forEach(track => track.stop());
+            cameraStreamLocal.getTracks().forEach(track => track.stop());
+            return;
+          }
+        }
 
         setScreenStream(displayStream);
         setCameraStream(cameraStreamLocal);
@@ -211,7 +234,7 @@ const RecordingStep: React.FC<RecordingStepProps> = ({ onNext, onPrev, data, upd
       setError('Could not access camera and/or screen. Please check your permissions.');
       console.error('Error accessing media devices:', err);
     }
-  }, [updateData, recordingMode, isRecording]);
+  }, [updateData, recordingMode, isMobile]);
 
   const stopRecording = useCallback(() => {
     if (mediaRecorderRef.current && isRecording) {

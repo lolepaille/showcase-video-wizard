@@ -1,17 +1,17 @@
-
 import React from 'react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Edit, Trash2, Download, Scissors, ArrowUpDown } from 'lucide-react';
 import type { SortField, SortDirection } from './SubmissionsFilters';
+import type { ClusterType } from '@/pages/Index';
 
 interface Submission {
   id: string;
   full_name: string;
   email: string;
   title: string;
-  cluster: string;
+  cluster: ClusterType;
   profile_picture_url: string | null;
   video_url: string | null;
   notes: any;

@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -22,10 +21,9 @@ interface ReviewStepProps {
 const ReviewStep: React.FC<ReviewStepProps> = ({ onNext, onPrev, data, updateData }) => {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [qualityChecked, setQualityChecked] = useState({
-    audioQuality: false,
-    videoQuality: false,
-    contentRelevant: false,
-    withinTimeLimit: false,
+    audioVisual: false,
+    questionsAddressed: false,
+    timeLimit: false,
   });
   const { toast } = useToast();
 
@@ -33,8 +31,8 @@ const ReviewStep: React.FC<ReviewStepProps> = ({ onNext, onPrev, data, updateDat
     updateData({ [field]: value });
   };
 
-  const handleQualityCheck = (item: string, checked: boolean) => {
-    setQualityChecked(prev => ({ ...prev, [item]: checked }));
+  const handleQualityCheck = (key: keyof typeof qualityChecked, checked: boolean) => {
+    setQualityChecked(prev => ({ ...prev, [key]: checked }));
   };
 
   const isFormValid = 
@@ -195,8 +193,8 @@ const ReviewStep: React.FC<ReviewStepProps> = ({ onNext, onPrev, data, updateDat
           <VideoPreview videoBlob={data.videoBlob} />
 
           <QualityChecklist 
-            checkedItems={qualityChecked}
-            onItemChange={handleQualityCheck}
+            checklist={qualityChecked}
+            onChecklistChange={handleQualityCheck}
           />
 
           <SubmissionStatus isFormValid={isFormValid} isSubmitting={isSubmitting} />

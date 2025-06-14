@@ -1,19 +1,17 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Badge } from '@/components/ui/badge';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Edit, Trash2, Eye, Download, Users, LogOut, Plus, Scissors } from 'lucide-react';
+import { Eye, LogOut, Plus, Users } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useNavigate } from 'react-router-dom';
 import { useToast } from '@/hooks/use-toast';
 import FileUploadField from '@/components/onboarding/FileUploadField';
 import VideoTrimmer from '@/components/onboarding/VideoTrimmer';
 import VideoConverter from '@/components/onboarding/video-trimmer/VideoConverter';
+import SubmissionsFilters, { type FiltersState, type SortField } from '@/components/admin/SubmissionsFilters';
+import SubmissionsTable from '@/components/admin/SubmissionsTable';
 import type { ClusterType } from '@/pages/Index';
 
 interface Submission {
@@ -46,6 +44,14 @@ const AdminDashboard = () => {
   const [convertedVideoBlob, setConvertedVideoBlob] = useState<Blob | null>(null);
   const [showAddForm, setShowAddForm] = useState(false);
   const [error, setError] = useState('');
+  
+  // Filters and sorting state
+  const [filters, setFilters] = useState<FiltersState>({
+    searchTerm: '',
+    sortField: 'created_at',
+    sortDirection: 'desc'
+  });
+  
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -58,6 +64,63 @@ const AdminDashboard = () => {
     
     fetchSubmissions();
   }, [navigate]);
+
+  // Filter and sort submissions
+  const filteredAndSortedSubmissions = useMemo(() => {
+    let result = [...submissions];
+
+    // Apply search filter
+    if (filters.searchTerm) {
+      const searchLower = filters.searchTerm.toLowerCase();
+      result = result.filter(submission => 
+        submission.full_name.toLowerCase().includes(searchLower) ||
+        submission.email.toLowerCase().includes(searchLower) ||
+        (submission.title && submission.title.toLowerCase().includes(searchLower)) ||
+        submission.cluster.toLowerCase().includes(searchLower)
+      );
+    }
+
+    // Apply sorting
+    result.sort((a, b) => {
+      let aValue: string | number;
+      let bValue: string | number;
+
+      switch (filters.sortField) {
+        case 'full_name':
+          aValue = a.full_name.toLowerCase();
+          bValue = b.full_name.toLowerCase();
+          break;
+        case 'cluster':
+          aValue = a.cluster.toLowerCase();
+          bValue = b.cluster.toLowerCase();
+          break;
+        case 'created_at':
+          aValue = new Date(a.created_at).getTime();
+          bValue = new Date(b.created_at).getTime();
+          break;
+        default:
+          return 0;
+      }
+
+      if (aValue < bValue) {
+        return filters.sortDirection === 'asc' ? -1 : 1;
+      }
+      if (aValue > bValue) {
+        return filters.sortDirection === 'asc' ? 1 : -1;
+      }
+      return 0;
+    });
+
+    return result;
+  }, [submissions, filters]);
+
+  const handleSort = (field: SortField) => {
+    setFilters(prev => ({
+      ...prev,
+      sortField: field,
+      sortDirection: prev.sortField === field && prev.sortDirection === 'asc' ? 'desc' : 'asc'
+    }));
+  };
 
   const fetchSubmissions = async () => {
     try {
@@ -386,116 +449,45 @@ const AdminDashboard = () => {
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Users className="h-5 w-5" />
-                Submissions ({submissions.length})
+                Submissions ({filteredAndSortedSubmissions.length})
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="space-y-4">
-                {submissions.map((submission) => (
-                  <div key={submission.id} className="border rounded-lg p-4">
-                    <div className="flex items-center justify-between">
-                      <div className="flex-1">
-                        <div className="flex items-center gap-3 mb-2">
-                          {submission.profile_picture_url && (
-                            <img 
-                              src={submission.profile_picture_url} 
-                              alt={submission.full_name}
-                              className="w-12 h-12 rounded-full object-cover"
-                            />
-                          )}
-                          <div>
-                            <h3 className="font-semibold">{submission.full_name}</h3>
-                            <p className="text-sm text-gray-600">{submission.email}</p>
-                            {submission.title && <p className="text-sm text-gray-500">{submission.title}</p>}
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <Badge variant="outline">{submission.cluster}</Badge>
-                          <Badge variant={submission.is_published ? "default" : "secondary"}>
-                            {submission.is_published ? "Published" : "Draft"}
-                          </Badge>
-                        </div>
-                      </div>
-                      
-                      <div className="flex items-center gap-2">
-                        {submission.video_url && (
-                          <>
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => downloadVideo(submission.video_url!, `${submission.full_name}_video.webm`)}
-                              title="Download video"
-                            >
-                              <Download className="h-4 w-4" />
-                            </Button>
-                            
-                            <Button
-                              size="sm"
-                              variant="outline"
-                              onClick={() => handleTrimVideoClick(submission)}
-                              title="Trim video"
-                            >
-                              <Scissors className="h-4 w-4" />
-                            </Button>
-                          </>
-                        )}
-                        
-                        <Dialog>
-                          <DialogTrigger asChild>
-                            <Button 
-                              size="sm" 
-                              variant="outline"
-                              onClick={() => setEditingSubmission(submission)}
-                              title="Edit submission"
-                            >
-                              <Edit className="h-4 w-4" />
-                            </Button>
-                          </DialogTrigger>
-                          <DialogContent className="max-w-2xl">
-                            <DialogHeader>
-                              <DialogTitle>Edit Submission</DialogTitle>
-                            </DialogHeader>
-                            {editingSubmission && (
-                              <EditSubmissionForm 
-                                submission={editingSubmission}
-                                onSave={handleUpdateSubmission}
-                                onCancel={() => setEditingSubmission(null)}
-                              />
-                            )}
-                          </DialogContent>
-                        </Dialog>
-                        
-                        <Button
-                          size="sm"
-                          variant={submission.is_published ? "secondary" : "default"}
-                          onClick={() => handleTogglePublish(submission)}
-                          title={submission.is_published ? "Unpublish" : "Publish"}
-                        >
-                          {submission.is_published ? "Unpublish" : "Publish"}
-                        </Button>
-                        
-                        <Button
-                          size="sm"
-                          variant="destructive"
-                          onClick={() => handleDeleteSubmission(submission.id)}
-                          title="Delete submission"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-                
-                {submissions.length === 0 && (
-                  <div className="text-center py-8 text-gray-500">
-                    No submissions yet
-                  </div>
-                )}
-              </div>
+              <SubmissionsFilters
+                filters={filters}
+                onFiltersChange={setFilters}
+              />
+              
+              <SubmissionsTable
+                submissions={filteredAndSortedSubmissions}
+                sortField={filters.sortField}
+                sortDirection={filters.sortDirection}
+                onSort={handleSort}
+                onEdit={setEditingSubmission}
+                onDelete={handleDeleteSubmission}
+                onTogglePublish={handleTogglePublish}
+                onTrimVideo={handleTrimVideoClick}
+                onDownloadVideo={downloadVideo}
+              />
             </CardContent>
           </Card>
         </div>
+
+        {/* Edit Dialog */}
+        <Dialog open={!!editingSubmission} onOpenChange={() => setEditingSubmission(null)}>
+          <DialogContent className="max-w-2xl">
+            <DialogHeader>
+              <DialogTitle>Edit Submission</DialogTitle>
+            </DialogHeader>
+            {editingSubmission && (
+              <EditSubmissionForm 
+                submission={editingSubmission}
+                onSave={handleUpdateSubmission}
+                onCancel={() => setEditingSubmission(null)}
+              />
+            )}
+          </DialogContent>
+        </Dialog>
       </div>
     </div>
   );

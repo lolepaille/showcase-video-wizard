@@ -99,13 +99,13 @@ const ReviewStep: React.FC<ReviewStepProps> = ({ onNext, onPrev, data, updateDat
       console.log('Files uploaded successfully, saving to database...');
 
       const submissionData = {
-        full_name: data.fullName,
-        email: data.email,
-        title: data.title || null,
+        full_name: data.fullName.trim(),
+        email: data.email.trim(),
+        title: data.title?.trim() || null,
         cluster: data.cluster as ClusterType,
         profile_picture_url: profilePictureUrl,
         video_url: videoUrl,
-        notes: data.notes,
+        notes: data.notes || null,
         is_published: false
       };
 
@@ -113,7 +113,7 @@ const ReviewStep: React.FC<ReviewStepProps> = ({ onNext, onPrev, data, updateDat
 
       const { data: submission, error } = await supabase
         .from('submissions')
-        .insert(submissionData)
+        .insert([submissionData])
         .select()
         .single();
 

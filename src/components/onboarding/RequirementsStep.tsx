@@ -59,15 +59,6 @@ const RequirementsStep: React.FC<RequirementsStepProps> = ({ onNext, onPrev }) =
       tips: 'Keep it concise and engaging. Practice beforehand to stay within the time limit.',
       good: 'Concise, under 2 minutes',
       bad: 'Too long, rushed ending'
-    },
-    {
-      id: 'format',
-      icon: CheckCircle2,
-      title: 'Format',
-      description: 'MP4 or WebM. Minimum 720p resolution',
-      tips: 'Most modern devices record in compatible formats automatically.',
-      good: 'High quality, compatible format',
-      bad: 'Low resolution, incompatible format'
     }
   ];
 
@@ -94,7 +85,7 @@ const RequirementsStep: React.FC<RequirementsStepProps> = ({ onNext, onPrev }) =
         </CardHeader>
         
         <CardContent className="space-y-6">
-          <div className="grid gap-4 md:grid-cols-2">
+          <div className="grid gap-4">
             {requirements.map((req) => {
               const Icon = req.icon;
               const isChecked = checkedItems.has(req.id);

@@ -11,6 +11,7 @@ import { Edit, Trash2, Eye, Download, Users, LogOut, Plus } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useNavigate } from 'react-router-dom';
 import { useToast } from '@/hooks/use-toast';
+import FileUploadField from '@/components/onboarding/FileUploadField';
 import type { ClusterType } from '@/pages/Index';
 
 interface Submission {
@@ -430,23 +431,23 @@ const AddSubmissionForm: React.FC<AddSubmissionFormProps> = ({ onSave, onCancel 
         </Select>
       </div>
 
-      <div className="space-y-2">
-        <Label>Profile Picture URL</Label>
-        <Input
-          value={formData.profile_picture_url}
-          onChange={(e) => setFormData(prev => ({ ...prev, profile_picture_url: e.target.value }))}
-          placeholder="https://example.com/image.jpg"
-        />
-      </div>
+      <FileUploadField
+        label="Profile Picture"
+        currentUrl={formData.profile_picture_url}
+        onUrlChange={(url) => setFormData(prev => ({ ...prev, profile_picture_url: url }))}
+        endpoint="upload-profile-picture"
+        accept="image/*"
+        fileType="Image"
+      />
 
-      <div className="space-y-2">
-        <Label>Video URL</Label>
-        <Input
-          value={formData.video_url}
-          onChange={(e) => setFormData(prev => ({ ...prev, video_url: e.target.value }))}
-          placeholder="https://example.com/video.mp4"
-        />
-      </div>
+      <FileUploadField
+        label="Video"
+        currentUrl={formData.video_url}
+        onUrlChange={(url) => setFormData(prev => ({ ...prev, video_url: url }))}
+        endpoint="upload-video"
+        accept="video/*"
+        fileType="Video"
+      />
       
       <div className="flex justify-end gap-2 pt-4">
         <Button type="button" variant="outline" onClick={onCancel}>
@@ -520,6 +521,24 @@ const EditSubmissionForm: React.FC<EditSubmissionFormProps> = ({ submission, onS
           </SelectContent>
         </Select>
       </div>
+
+      <FileUploadField
+        label="Profile Picture"
+        currentUrl={formData.profile_picture_url || ''}
+        onUrlChange={(url) => setFormData(prev => ({ ...prev, profile_picture_url: url }))}
+        endpoint="upload-profile-picture"
+        accept="image/*"
+        fileType="Image"
+      />
+
+      <FileUploadField
+        label="Video"
+        currentUrl={formData.video_url || ''}
+        onUrlChange={(url) => setFormData(prev => ({ ...prev, video_url: url }))}
+        endpoint="upload-video"
+        accept="video/*"
+        fileType="Video"
+      />
       
       <div className="flex justify-end gap-2 pt-4">
         <Button type="button" variant="outline" onClick={onCancel}>

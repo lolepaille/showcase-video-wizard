@@ -3,7 +3,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Slider } from '@/components/ui/slider';
-import { Play, Pause, Scissors, RotateCcw } from 'lucide-react';
+import { Play, Pause, Scissors, RotateCcw, X } from 'lucide-react';
 
 interface VideoTrimmerProps {
   videoBlob: Blob;
@@ -19,9 +19,10 @@ const VideoTrimmer: React.FC<VideoTrimmerProps> = ({ videoBlob, onTrimComplete, 
   const [endTime, setEndTime] = useState(0);
   const [isLoaded, setIsLoaded] = useState(false);
   const [isTrimming, setIsTrimming] = useState(false);
+  const [trimProgress, setTrimProgress] = useState(0);
+  const [error, setError] = useState<string>('');
   
   const videoRef = useRef<HTMLVideoElement>(null);
-  const canvasRef = useRef<HTMLCanvasElement>(null);
   const videoUrl = useRef<string>('');
 
   useEffect(() => {
@@ -43,6 +44,7 @@ const VideoTrimmer: React.FC<VideoTrimmerProps> = ({ videoBlob, onTrimComplete, 
       setStartTime(0);
       setEndTime(0);
       setIsPlaying(false);
+      setError('');
     }
 
     return () => {
@@ -59,6 +61,7 @@ const VideoTrimmer: React.FC<VideoTrimmerProps> = ({ videoBlob, onTrimComplete, 
         setDuration(dur);
         setEndTime(dur);
         setIsLoaded(true);
+        console.log('Video loaded successfully, duration:', dur);
       }
     }
   };
@@ -122,30 +125,51 @@ const VideoTrimmer: React.FC<VideoTrimmerProps> = ({ videoBlob, onTrimComplete, 
   };
 
   const trimVideo = async () => {
-    if (!videoRef.current || !canvasRef.current || !isLoaded) return;
+    if (!videoRef.current || !isLoaded) return;
 
     setIsTrimming(true);
+    setTrimProgress(0);
+    setError('');
     
     try {
+      console.log('Starting video trim process...');
+      
+      // Use a simpler approach with MediaRecorder
       const video = videoRef.current;
-      const canvas = canvasRef.current;
+      const canvas = document.createElement('canvas');
       const ctx = canvas.getContext('2d')!;
       
       // Set canvas dimensions to match video
-      canvas.width = video.videoWidth;
-      canvas.height = video.videoHeight;
+      canvas.width = video.videoWidth || 640;
+      canvas.height = video.videoHeight || 480;
       
-      const fps = 30; // Target framerate
-      const trimDuration = endTime - startTime;
-      const totalFrames = Math.ceil(trimDuration * fps);
+      console.log('Canvas dimensions:', canvas.width, 'x', canvas.height);
       
-      // Create MediaRecorder to capture the trimmed video
-      const stream = canvas.captureStream(fps);
+      // Create a stream from canvas
+      const stream = canvas.captureStream(30);
+      
+      // Add audio track if available
+      if (videoBlob.type.includes('audio') || video.mozHasAudio || video.webkitAudioDecodedByteCount > 0) {
+        try {
+          const audioContext = new AudioContext();
+          const source = audioContext.createMediaElementSource(video);
+          const destination = audioContext.createMediaStreamDestination();
+          source.connect(destination);
+          
+          destination.stream.getAudioTracks().forEach(track => {
+            stream.addTrack(track);
+          });
+        } catch (audioError) {
+          console.warn('Could not add audio track:', audioError);
+        }
+      }
+      
       const mediaRecorder = new MediaRecorder(stream, {
         mimeType: 'video/webm;codecs=vp9'
       });
       
       const chunks: Blob[] = [];
+      
       mediaRecorder.ondataavailable = (event) => {
         if (event.data.size > 0) {
           chunks.push(event.data);
@@ -153,40 +177,69 @@ const VideoTrimmer: React.FC<VideoTrimmerProps> = ({ videoBlob, onTrimComplete, 
       };
       
       mediaRecorder.onstop = () => {
+        console.log('MediaRecorder stopped, creating blob...');
         const trimmedBlob = new Blob(chunks, { type: 'video/webm' });
         onTrimComplete(trimmedBlob);
+        setIsTrimming(false);
+        setTrimProgress(100);
+      };
+      
+      mediaRecorder.onerror = (event) => {
+        console.error('MediaRecorder error:', event);
+        setError('Error during video trimming. Please try again.');
         setIsTrimming(false);
       };
       
       // Start recording
       mediaRecorder.start();
+      console.log('MediaRecorder started');
       
-      // Render frames
-      let frameCount = 0;
-      const renderFrame = () => {
-        if (frameCount >= totalFrames) {
-          mediaRecorder.stop();
-          return;
-        }
+      // Set video to start time and play
+      video.currentTime = startTime;
+      
+      const trimDuration = endTime - startTime;
+      let recordingStartTime = Date.now();
+      
+      video.onseeked = () => {
+        video.play();
+        recordingStartTime = Date.now();
         
-        const currentVideoTime = startTime + (frameCount / fps);
-        video.currentTime = currentVideoTime;
-        
-        video.onseeked = () => {
-          ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-          frameCount++;
+        // Update progress
+        const progressInterval = setInterval(() => {
+          const elapsed = (Date.now() - recordingStartTime) / 1000;
+          const progress = Math.min((elapsed / trimDuration) * 100, 100);
+          setTrimProgress(progress);
           
-          // Small delay to ensure frame is rendered
-          setTimeout(renderFrame, 1000 / fps);
-        };
+          // Draw current frame to canvas
+          ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+          
+          if (elapsed >= trimDuration) {
+            clearInterval(progressInterval);
+            video.pause();
+            mediaRecorder.stop();
+          }
+        }, 100);
       };
-      
-      renderFrame();
       
     } catch (error) {
       console.error('Error trimming video:', error);
+      setError('Failed to trim video. Please try again.');
       setIsTrimming(false);
+      setTrimProgress(0);
     }
+  };
+
+  const cancelTrimming = () => {
+    setIsTrimming(false);
+    setTrimProgress(0);
+    setError('');
+    console.log('Video trimming cancelled');
+  };
+
+  const retryTrimming = () => {
+    setError('');
+    setTrimProgress(0);
+    trimVideo();
   };
 
   const formatTime = (time: number) => {
@@ -204,6 +257,15 @@ const VideoTrimmer: React.FC<VideoTrimmerProps> = ({ videoBlob, onTrimComplete, 
         <CardTitle className="text-xl font-bold flex items-center justify-center gap-2">
           <Scissors className="h-5 w-5" />
           Trim Your Video
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={onCancel}
+            className="ml-auto"
+            disabled={isTrimming}
+          >
+            <X className="h-4 w-4" />
+          </Button>
         </CardTitle>
         <p className="text-muted-foreground">
           Select the start and end points to trim your video
@@ -211,6 +273,23 @@ const VideoTrimmer: React.FC<VideoTrimmerProps> = ({ videoBlob, onTrimComplete, 
       </CardHeader>
       
       <CardContent className="space-y-6">
+        {/* Error Display */}
+        {error && (
+          <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+            <div className="flex items-center justify-between">
+              <p className="text-red-800">{error}</p>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={retryTrimming}
+                className="text-red-600 border-red-300"
+              >
+                Retry
+              </Button>
+            </div>
+          </div>
+        )}
+
         {/* Video Preview */}
         <div className="relative bg-black rounded-lg overflow-hidden aspect-video max-w-2xl mx-auto">
           <video
@@ -232,12 +311,28 @@ const VideoTrimmer: React.FC<VideoTrimmerProps> = ({ videoBlob, onTrimComplete, 
               </div>
             </div>
           )}
+
+          {/* Trimming Progress Overlay */}
+          {isTrimming && (
+            <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
+              <div className="text-center text-white">
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white mx-auto mb-4"></div>
+                <p className="text-lg font-medium">Trimming Video...</p>
+                <p className="text-sm">{Math.round(trimProgress)}% Complete</p>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={cancelTrimming}
+                  className="mt-4 text-white border-white hover:bg-white hover:text-black"
+                >
+                  Cancel
+                </Button>
+              </div>
+            </div>
+          )}
         </div>
 
-        {/* Hidden canvas for trimming */}
-        <canvas ref={canvasRef} className="hidden" />
-
-        {isLoaded && (
+        {isLoaded && !isTrimming && (
           <div className="space-y-4">
             {/* Playback Controls */}
             <div className="flex items-center justify-center gap-4">
@@ -319,7 +414,6 @@ const VideoTrimmer: React.FC<VideoTrimmerProps> = ({ videoBlob, onTrimComplete, 
               <Button
                 variant="outline"
                 onClick={onCancel}
-                disabled={isTrimming}
                 className="px-6"
               >
                 <RotateCcw className="h-4 w-4 mr-2" />
@@ -328,20 +422,11 @@ const VideoTrimmer: React.FC<VideoTrimmerProps> = ({ videoBlob, onTrimComplete, 
               
               <Button
                 onClick={trimVideo}
-                disabled={isTrimming || trimmedDuration < 0.5}
+                disabled={trimmedDuration < 0.5}
                 className="px-6 bg-green-600 hover:bg-green-700"
               >
-                {isTrimming ? (
-                  <>
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                    Trimming...
-                  </>
-                ) : (
-                  <>
-                    <Scissors className="h-4 w-4 mr-2" />
-                    Apply Trim
-                  </>
-                )}
+                <Scissors className="h-4 w-4 mr-2" />
+                Apply Trim
               </Button>
             </div>
 

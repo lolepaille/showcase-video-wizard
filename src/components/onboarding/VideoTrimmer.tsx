@@ -207,7 +207,7 @@ const VideoTrimmer: React.FC<VideoTrimmerProps> = ({ videoBlob, onTrimComplete, 
     try {
       console.log('VideoTrimmer: Starting video trim process...');
       
-      const video = videoRef.current;
+      const video = videoRef.current!;
       const canvas = document.createElement('canvas');
       const ctx = canvas.getContext('2d');
 
@@ -310,24 +310,35 @@ const VideoTrimmer: React.FC<VideoTrimmerProps> = ({ videoBlob, onTrimComplete, 
           let frameCaptureStartTime = Date.now();
           
           progressIntervalIdRef.current = setInterval(() => {
-            if (!videoRef.current || !mediaRecorderInstanceRef.current || mediaRecorderInstanceRef.current.state !== 'recording') {
-              if (progressIntervalIdRef.current) clearInterval(progressIntervalIdRef.current);
+            const currentVideoRef = videoRef.current; // Capture for consistent use within interval
+            const currentRecorder = mediaRecorderInstanceRef.current;
+
+            // Modified condition to address TS2367 and added nullification for progressIntervalIdRef
+            if (!currentVideoRef || !currentRecorder || currentRecorder.state === 'inactive' || currentRecorder.state === 'paused') {
+              if (progressIntervalIdRef.current) {
+                clearInterval(progressIntervalIdRef.current);
+                progressIntervalIdRef.current = null; // Ensure nullification
+              }
               return;
             }
 
-            ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+            // At this point, currentVideoRef is valid, currentRecorder is valid and its state is 'recording'.
+            ctx.drawImage(video, 0, 0, canvas.width, canvas.height); // 'video' is videoRef.current from outer scope
             
             const elapsed = (Date.now() - frameCaptureStartTime) / 1000;
             const progress = Math.min((elapsed / calculatedTrimDuration) * 100, 100);
             setTrimProgress(progress);
             
-            if (videoRef.current.currentTime >= endTime || elapsed >= calculatedTrimDuration + 0.5 ) { 
-              if (progressIntervalIdRef.current) clearInterval(progressIntervalIdRef.current);
-              progressIntervalIdRef.current = null;
+            // Check if trimming duration is reached
+            if (currentVideoRef.currentTime >= endTime || elapsed >= calculatedTrimDuration + 0.5 ) { 
+              if (progressIntervalIdRef.current) {
+                clearInterval(progressIntervalIdRef.current);
+                progressIntervalIdRef.current = null; // Ensure nullification
+              }
               
-              if (videoRef.current) videoRef.current.pause();
-              if (mediaRecorderInstanceRef.current && mediaRecorderInstanceRef.current.state === 'recording') {
-                mediaRecorderInstanceRef.current.stop();
+              currentVideoRef.pause(); // Pause the original video
+              if (currentRecorder.state === 'recording') { // Ensure it's still recording before stopping
+                currentRecorder.stop();
               }
               console.log('VideoTrimmer: Trimming duration reached or passed.');
             }

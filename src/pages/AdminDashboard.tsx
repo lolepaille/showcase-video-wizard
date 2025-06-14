@@ -297,52 +297,53 @@ const AdminDashboard = () => {
     }
   };
 
-  const handleTrimComplete = async (trimmedBlob: Blob) => {
+  const handleTrimComplete = async (videoUrl: string, startTime?: number, endTime?: number) => {
     if (!trimmingVideo) return;
     
     try {
-      // First upload the trimmed video
-      const formData = new FormData();
-      formData.append('file', trimmedBlob, `trimmed-${Date.now()}.webm`);
+      console.log('Updating submission with trim times:', { videoUrl, startTime, endTime });
       
-      const { data: uploadResponse, error: uploadError } = await supabase.functions.invoke('upload-video', {
-        method: 'POST',
-        body: formData
-      });
-
-      if (uploadError) {
-        throw new Error('Failed to upload trimmed video');
-      }
-
-      const newVideoUrl = uploadResponse.url;
-      
-      // Then update the submission record
+      // Update the submission record with the original video URL and trim times
       const { error: updateError } = await supabase.functions.invoke('admin-submissions', {
         method: 'PUT',
         body: JSON.stringify({
           id: trimmingVideo.id,
-          video_url: newVideoUrl
+          video_url: videoUrl,
+          // Store trim times in notes for now - we could add dedicated columns later
+          notes: {
+            ...trimmingVideo.notes,
+            startTime,
+            endTime
+          }
         })
       });
 
       if (updateError) {
-        throw new Error('Failed to update submission with trimmed video URL');
+        throw new Error('Failed to update submission with trim times');
       }
       
       // Update local state
       setSubmissions(prev => 
-        prev.map(s => s.id === trimmingVideo.id ? { ...s, video_url: newVideoUrl } : s)
+        prev.map(s => s.id === trimmingVideo.id ? { 
+          ...s, 
+          video_url: videoUrl,
+          notes: {
+            ...s.notes,
+            startTime,
+            endTime
+          }
+        } : s)
       );
       
       toast({
         title: "Success",
-        description: "Video trimmed and updated successfully",
+        description: "Video playback times set successfully",
       });
       
       setTrimmingVideo(null);
     } catch (err) {
-      console.error('Error handling trimmed video:', err);
-      setError('Failed to save trimmed video');
+      console.error('Error saving trim times:', err);
+      setError('Failed to save video playback times');
     }
   };
 
@@ -380,7 +381,7 @@ const AdminDashboard = () => {
             videoUrl={trimmingVideo.video_url}
             onTrimComplete={handleTrimComplete}
             onCancel={() => setTrimmingVideo(null)}
-            title={`Trim Video: ${trimmingVideo.full_name}`}
+            title={`Set Playback Times: ${trimmingVideo.full_name}`}
           />
         </div>
       </div>

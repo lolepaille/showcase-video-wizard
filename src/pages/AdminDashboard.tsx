@@ -352,37 +352,8 @@ const AdminDashboard = () => {
       return;
     }
 
-    try {
-      // Download the video and convert it to a blob for trimming
-      console.log('Downloading video for trimming:', submission.video_url);
-      const response = await fetch(submission.video_url);
-      
-      if (!response.ok) {
-        throw new Error(`Failed to fetch video: ${response.status} ${response.statusText}`);
-      }
-      
-      const videoBlob = await response.blob();
-      console.log('Video blob created for trimming, size:', videoBlob.size, 'type:', videoBlob.type);
-      
-      // Create a blob URL for the trimmer
-      const blobUrl = URL.createObjectURL(videoBlob);
-      
-      // Set up the trimming video with the blob
-      setTrimmingVideo({
-        ...submission,
-        video_url: blobUrl,
-        videoBlob: videoBlob
-      } as Submission & { videoBlob: Blob });
-      
-    } catch (err) {
-      console.error('Error preparing video for trimming:', err);
-      setError('Failed to load video for trimming. The video may be corrupted or inaccessible.');
-      toast({
-        title: "Error",
-        description: "Failed to load video for trimming",
-        variant: "destructive",
-      });
-    }
+    // No need to download to blob, just pass the URL for server-side trimming
+    setTrimmingVideo(submission);
   };
 
   const handleViewVideo = (submission: Submission) => {
@@ -401,20 +372,14 @@ const AdminDashboard = () => {
   }
 
   // Show video trimmer if a video is selected for trimming
-  if (trimmingVideo && (trimmingVideo as any).videoBlob) {
+  if (trimmingVideo) {
     return (
       <div className="min-h-screen bg-gray-50 p-4 md:p-8">
         <div className="max-w-4xl mx-auto">
           <VideoTrimmer
-            videoBlob={(trimmingVideo as any).videoBlob}
+            videoUrl={trimmingVideo.video_url}
             onTrimComplete={handleTrimComplete}
-            onCancel={() => {
-              setTrimmingVideo(null);
-              // Clean up blob URL
-              if (trimmingVideo.video_url?.startsWith('blob:')) {
-                URL.revokeObjectURL(trimmingVideo.video_url);
-              }
-            }}
+            onCancel={() => setTrimmingVideo(null)}
             title={`Trim Video: ${trimmingVideo.full_name}`}
           />
         </div>

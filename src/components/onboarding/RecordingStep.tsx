@@ -1,11 +1,11 @@
+
 import React, { useState, useRef, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Label } from '@/components/ui/label';
-import { Play, Square, RotateCcw, CheckCircle2, Camera, Mic, Monitor, Presentation, Scissors } from 'lucide-react';
-import VideoTrimmer from './VideoTrimmer';
+import { Play, Square, RotateCcw, CheckCircle2, Camera, Mic, Monitor, Presentation } from 'lucide-react';
 import type { SubmissionData } from '@/pages/Index';
 
 interface RecordingStepProps {
@@ -16,14 +16,12 @@ interface RecordingStepProps {
 }
 
 type RecordingMode = 'camera' | 'screen' | 'both';
-type ViewMode = 'recording' | 'preview' | 'trimming';
 
 const RecordingStep: React.FC<RecordingStepProps> = ({ onNext, onPrev, data, updateData }) => {
   const [isRecording, setIsRecording] = useState(false);
   const [recordedBlob, setRecordedBlob] = useState<Blob | null>(data.videoBlob || null);
   const [recordingTime, setRecordingTime] = useState(0);
   const [recordingMode, setRecordingMode] = useState<RecordingMode>('camera');
-  const [viewMode, setViewMode] = useState<ViewMode>('recording');
   const [cameraStream, setCameraStream] = useState<MediaStream | null>(null);
   const [screenStream, setScreenStream] = useState<MediaStream | null>(null);
   const [error, setError] = useState<string>('');
@@ -184,7 +182,6 @@ const RecordingStep: React.FC<RecordingStepProps> = ({ onNext, onPrev, data, upd
         const blob = new Blob(chunksRef.current, { type: 'video/webm' });
         setRecordedBlob(blob);
         updateData({ videoBlob: blob });
-        setViewMode('preview');
         
         if (videoRef.current) {
           videoRef.current.srcObject = null;
@@ -246,7 +243,6 @@ const RecordingStep: React.FC<RecordingStepProps> = ({ onNext, onPrev, data, upd
   const resetRecording = useCallback(() => {
     setRecordedBlob(null);
     setRecordingTime(0);
-    setViewMode('recording');
     updateData({ videoBlob: undefined });
     
     if (videoRef.current) {
@@ -258,30 +254,11 @@ const RecordingStep: React.FC<RecordingStepProps> = ({ onNext, onPrev, data, upd
     }
   }, [updateData]);
 
-  const handleTrimComplete = (trimmedBlob: Blob) => {
-    setRecordedBlob(trimmedBlob);
-    updateData({ videoBlob: trimmedBlob });
-    setViewMode('preview');
-  };
-
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
-
-  // Render trimming view
-  if (viewMode === 'trimming' && recordedBlob) {
-    return (
-      <div className="max-w-4xl mx-auto">
-        <VideoTrimmer
-          videoBlob={recordedBlob}
-          onTrimComplete={handleTrimComplete}
-          onCancel={() => setViewMode('preview')}
-        />
-      </div>
-    );
-  }
 
   return (
     <div className="max-w-4xl mx-auto">
@@ -301,7 +278,7 @@ const RecordingStep: React.FC<RecordingStepProps> = ({ onNext, onPrev, data, upd
           )}
 
           {/* Recording Mode Selection */}
-          {!isRecording && !recordedBlob && viewMode === 'recording' && (
+          {!isRecording && !recordedBlob && (
             <div className="space-y-4">
               <h3 className="text-lg font-semibold">Choose Recording Mode</h3>
               <RadioGroup 
@@ -396,7 +373,7 @@ const RecordingStep: React.FC<RecordingStepProps> = ({ onNext, onPrev, data, upd
 
           {/* Recording Controls */}
           <div className="flex justify-center gap-4">
-            {!isRecording && !recordedBlob && viewMode === 'recording' && (
+            {!isRecording && !recordedBlob && (
               <Button
                 onClick={startRecording}
                 size="lg"
@@ -421,7 +398,7 @@ const RecordingStep: React.FC<RecordingStepProps> = ({ onNext, onPrev, data, upd
               </Button>
             )}
 
-            {recordedBlob && !isRecording && viewMode === 'preview' && (
+            {recordedBlob && !isRecording && (
               <div className="flex gap-4">
                 <Button
                   onClick={() => videoRef.current?.play()}
@@ -431,15 +408,6 @@ const RecordingStep: React.FC<RecordingStepProps> = ({ onNext, onPrev, data, upd
                 >
                   <Play className="h-5 w-5 mr-2" />
                   Preview
-                </Button>
-                <Button
-                  onClick={() => setViewMode('trimming')}
-                  size="lg"
-                  variant="outline"
-                  className="px-6"
-                >
-                  <Scissors className="h-5 w-5 mr-2" />
-                  Trim Video
                 </Button>
                 <Button
                   onClick={resetRecording}
@@ -454,7 +422,7 @@ const RecordingStep: React.FC<RecordingStepProps> = ({ onNext, onPrev, data, upd
             )}
           </div>
 
-          {recordedBlob && viewMode === 'preview' && (
+          {recordedBlob && (
             <div className="bg-green-50 border border-green-200 rounded-lg p-4">
               <div className="flex items-center gap-3">
                 <CheckCircle2 className="h-5 w-5 text-green-600" />
@@ -478,7 +446,7 @@ const RecordingStep: React.FC<RecordingStepProps> = ({ onNext, onPrev, data, upd
                   <li>• <strong>Screen:</strong> Perfect for presentations and demos</li>
                   <li>• <strong>Both:</strong> Present with your face in the corner</li>
                   <li>• Maximum recording time is 2 minutes</li>
-                  <li>• You can trim your video after recording</li>
+                  <li>• Your video can be trimmed by admins during review</li>
                 </ul>
               </div>
             </div>

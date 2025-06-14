@@ -7,11 +7,12 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Edit, Trash2, Eye, Download, Users, LogOut, Plus } from 'lucide-react';
+import { Edit, Trash2, Eye, Download, Users, LogOut, Plus, Scissors } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useNavigate } from 'react-router-dom';
 import { useToast } from '@/hooks/use-toast';
 import FileUploadField from '@/components/onboarding/FileUploadField';
+import VideoTrimmer from '@/components/onboarding/VideoTrimmer';
 import type { ClusterType } from '@/pages/Index';
 
 interface Submission {
@@ -39,6 +40,7 @@ const AdminDashboard = () => {
   const [submissions, setSubmissions] = useState<Submission[]>([]);
   const [loading, setLoading] = useState(true);
   const [editingSubmission, setEditingSubmission] = useState<Submission | null>(null);
+  const [trimmingVideo, setTrimmingVideo] = useState<Submission | null>(null);
   const [showAddForm, setShowAddForm] = useState(false);
   const [error, setError] = useState('');
   const navigate = useNavigate();
@@ -227,12 +229,77 @@ const AdminDashboard = () => {
     }
   };
 
+  const handleTrimComplete = async (trimmedBlob: Blob) => {
+    if (!trimmingVideo) return;
+    
+    try {
+      // First upload the trimmed video
+      const formData = new FormData();
+      formData.append('file', trimmedBlob, `trimmed-${Date.now()}.webm`);
+      
+      const { data: uploadResponse, error: uploadError } = await supabase.functions.invoke('upload-video', {
+        method: 'POST',
+        body: formData
+      });
+
+      if (uploadError) {
+        throw new Error('Failed to upload trimmed video');
+      }
+
+      const newVideoUrl = uploadResponse.url;
+      
+      // Then update the submission record
+      const { error: updateError } = await supabase.functions.invoke('admin-submissions', {
+        method: 'PUT',
+        body: JSON.stringify({
+          id: trimmingVideo.id,
+          video_url: newVideoUrl
+        })
+      });
+
+      if (updateError) {
+        throw new Error('Failed to update submission with trimmed video URL');
+      }
+      
+      // Update local state
+      setSubmissions(prev => 
+        prev.map(s => s.id === trimmingVideo.id ? { ...s, video_url: newVideoUrl } : s)
+      );
+      
+      toast({
+        title: "Success",
+        description: "Video trimmed and updated successfully",
+      });
+      
+      setTrimmingVideo(null);
+    } catch (err) {
+      console.error('Error handling trimmed video:', err);
+      setError('Failed to save trimmed video');
+    }
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
           <p>Loading submissions...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Show video trimmer if a video is selected for trimming
+  if (trimmingVideo && trimmingVideo.video_url) {
+    return (
+      <div className="min-h-screen bg-gray-50 p-4 md:p-8">
+        <div className="max-w-4xl mx-auto">
+          <VideoTrimmer
+            videoUrl={trimmingVideo.video_url}
+            onTrimComplete={handleTrimComplete}
+            onCancel={() => setTrimmingVideo(null)}
+            title={`Trim Video: ${trimmingVideo.full_name}`}
+          />
         </div>
       </div>
     );
@@ -319,13 +386,25 @@ const AdminDashboard = () => {
                       
                       <div className="flex items-center gap-2">
                         {submission.video_url && (
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => downloadVideo(submission.video_url!, `${submission.full_name}_video.webm`)}
-                          >
-                            <Download className="h-4 w-4" />
-                          </Button>
+                          <>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => downloadVideo(submission.video_url!, `${submission.full_name}_video.webm`)}
+                              title="Download video"
+                            >
+                              <Download className="h-4 w-4" />
+                            </Button>
+                            
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={() => setTrimmingVideo(submission)}
+                              title="Trim video"
+                            >
+                              <Scissors className="h-4 w-4" />
+                            </Button>
+                          </>
                         )}
                         
                         <Dialog>
@@ -334,6 +413,7 @@ const AdminDashboard = () => {
                               size="sm" 
                               variant="outline"
                               onClick={() => setEditingSubmission(submission)}
+                              title="Edit submission"
                             >
                               <Edit className="h-4 w-4" />
                             </Button>
@@ -356,6 +436,7 @@ const AdminDashboard = () => {
                           size="sm"
                           variant={submission.is_published ? "secondary" : "default"}
                           onClick={() => handleTogglePublish(submission)}
+                          title={submission.is_published ? "Unpublish" : "Publish"}
                         >
                           {submission.is_published ? "Unpublish" : "Publish"}
                         </Button>
@@ -364,6 +445,7 @@ const AdminDashboard = () => {
                           size="sm"
                           variant="destructive"
                           onClick={() => handleDeleteSubmission(submission.id)}
+                          title="Delete submission"
                         >
                           <Trash2 className="h-4 w-4" />
                         </Button>

@@ -1,14 +1,12 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 
 interface UseVideoTrimmerProps {
-  videoBlob: Blob;
+  videoBlob?: Blob;
+  videoUrl?: string;
   onTrimComplete: (trimmedBlob: Blob) => void;
-  // onCancel is not directly used by the hook's core logic for aborting trim,
-  // but kept if needed for other cleanup specific to the hook's lifecycle.
-  // The main component's onCancel handles UI dismissal.
 }
 
-export const useVideoTrimmer = ({ videoBlob, onTrimComplete }: UseVideoTrimmerProps) => {
+export const useVideoTrimmer = ({ videoBlob, videoUrl, onTrimComplete }: UseVideoTrimmerProps) => {
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
@@ -20,52 +18,66 @@ export const useVideoTrimmer = ({ videoBlob, onTrimComplete }: UseVideoTrimmerPr
   const [error, setError] = useState<string>('');
 
   const videoRef = useRef<HTMLVideoElement>(null);
-  const videoUrlRef = useRef<string>(''); // Changed name to avoid conflict with returned videoUrl
+  const videoUrlRef = useRef<string>('');
   const mediaRecorderInstanceRef = useRef<MediaRecorder | null>(null);
   const progressIntervalIdRef = useRef<number | null>(null);
+  const sourceBlobRef = useRef<Blob | null>(null);
 
   useEffect(() => {
-    if (videoBlob && videoRef.current) {
-      if (videoUrlRef.current) {
-        URL.revokeObjectURL(videoUrlRef.current);
-        console.log('useVideoTrimmer: Old video URL revoked:', videoUrlRef.current);
-      }
-      
+    // Clean up any previous URL
+    if (videoUrlRef.current) {
+      URL.revokeObjectURL(videoUrlRef.current);
+      videoUrlRef.current = '';
+    }
+    
+    // Create URL from blob or use provided URL
+    if (videoBlob) {
+      sourceBlobRef.current = videoBlob;
       videoUrlRef.current = URL.createObjectURL(videoBlob);
-      console.log('useVideoTrimmer: New video URL created:', videoUrlRef.current);
-      
-      // Force reload of video if src is already set to new URL by VideoPlayer prop change
-      // This ensures metadata is re-read for the new blob.
+      console.log('useVideoTrimmer: New video URL created from blob:', videoUrlRef.current);
+    } else if (videoUrl) {
+      videoUrlRef.current = videoUrl;
+      console.log('useVideoTrimmer: Using provided video URL:', videoUrlRef.current);
+    } else {
+      setError('No video source provided');
+      return;
+    }
+    
+    // Force reload of video if src is already set to ensure metadata is re-read
+    if (videoRef.current) {
       if (videoRef.current.src === videoUrlRef.current) {
         videoRef.current.load(); 
       }
-      // VideoPlayer component will update its src prop, which will also trigger a load.
-
-      setIsLoaded(false);
-      setCurrentTime(0);
-      setDuration(0);
-      setStartTime(0);
-      setEndTime(0);
-      setIsPlaying(false);
-      setError('');
     }
 
+    // Reset state
+    setIsLoaded(false);
+    setCurrentTime(0);
+    setDuration(0);
+    setStartTime(0);
+    setEndTime(0);
+    setIsPlaying(false);
+    setError('');
+
     return () => {
-      if (videoUrlRef.current) {
+      if (videoUrlRef.current && videoBlob) { // Only revoke if we created the URL
         console.log('useVideoTrimmer: Revoking video URL on cleanup:', videoUrlRef.current);
         URL.revokeObjectURL(videoUrlRef.current);
         videoUrlRef.current = '';
       }
+      
       if (progressIntervalIdRef.current) {
         clearInterval(progressIntervalIdRef.current);
         progressIntervalIdRef.current = null;
       }
+      
       if (mediaRecorderInstanceRef.current && mediaRecorderInstanceRef.current.state !== 'inactive') {
         mediaRecorderInstanceRef.current.stop();
       }
+      
       mediaRecorderInstanceRef.current = null;
     };
-  }, [videoBlob]);
+  }, [videoBlob, videoUrl]);
 
   const handleLoadedMetadata = useCallback(() => {
     if (videoRef.current) {
@@ -174,8 +186,7 @@ export const useVideoTrimmer = ({ videoBlob, onTrimComplete }: UseVideoTrimmerPr
       videoRef.current.currentTime = time;
       setCurrentTime(time);
     }
-  }, [isLoaded, duration/*, startTime, endTime*/]);
-
+  }, [isLoaded, duration]);
 
   const trimVideo = useCallback(async () => {
     if (!videoRef.current || !isLoaded) {
@@ -253,11 +264,8 @@ export const useVideoTrimmer = ({ videoBlob, onTrimComplete }: UseVideoTrimmerPr
         if (videoSourceStream && videoSourceStream.getAudioTracks().length > 0) {
            videoSourceStream.getAudioTracks().forEach(track => stream.addTrack(track.clone()));
            console.log('useVideoTrimmer: Added audio track from video element stream.');
-        } else if (videoBlob.type.startsWith('video/')) {
+        } else if (sourceBlobRef.current && sourceBlobRef.current.type.startsWith('video/')) {
             // Fallback: If original blob has audio, try to use it
-            // This is more complex and might not work directly with canvas captureStream
-            // For simplicity, we'll rely on browser's captureStream including audio if possible.
-            // Or, if audio must be mixed from original source, it requires more advanced Web Audio API usage.
             console.warn('useVideoTrimmer: Video element stream has no audio tracks. Trimmed video might be silent if browser does not mix it.');
         }
       } catch (audioError) {
@@ -433,7 +441,7 @@ export const useVideoTrimmer = ({ videoBlob, onTrimComplete }: UseVideoTrimmerPr
           progressIntervalIdRef.current = null;
         }
     }
-  }, [isLoaded, duration, startTime, endTime, videoBlob, onTrimComplete]);
+  }, [isLoaded, duration, startTime, endTime, onTrimComplete]);
 
   const cancelTrimming = useCallback(() => {
     console.log('useVideoTrimmer: cancelTrimming called.');
@@ -486,7 +494,7 @@ export const useVideoTrimmer = ({ videoBlob, onTrimComplete }: UseVideoTrimmerPr
 
   return {
     videoRef,
-    videoUrl: videoUrlRef.current, // Pass the actual URL string
+    videoUrl: videoUrlRef.current,
     isPlaying,
     isLoaded,
     currentTime,
@@ -509,7 +517,7 @@ export const useVideoTrimmer = ({ videoBlob, onTrimComplete }: UseVideoTrimmerPr
     trimVideo,
     cancelTrimming,
     retryTrimming,
-    setIsPlaying, // Expose if needed by parent for direct manipulation (e.g., on seek)
-    setCurrentTime, // Expose if needed
+    setIsPlaying,
+    setCurrentTime
   };
 };

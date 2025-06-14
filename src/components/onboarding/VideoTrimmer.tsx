@@ -11,15 +11,27 @@ import ErrorDisplay from './video-trimmer/ErrorDisplay';
 import { useVideoTrimmer } from './video-trimmer/hooks/useVideoTrimmer';
 
 interface VideoTrimmerProps {
-  videoBlob: Blob;
+  videoBlob?: Blob;
+  videoUrl?: string;
   onTrimComplete: (trimmedBlob: Blob) => void;
   onCancel: () => void;
+  title?: string;
 }
 
-const VideoTrimmer: React.FC<VideoTrimmerProps> = ({ videoBlob, onTrimComplete, onCancel }) => {
+const VideoTrimmer: React.FC<VideoTrimmerProps> = ({ 
+  videoBlob, 
+  videoUrl, 
+  onTrimComplete, 
+  onCancel,
+  title = "Trim Your Video"
+}) => {
+  if (!videoBlob && !videoUrl) {
+    throw new Error("VideoTrimmer requires either videoBlob or videoUrl prop");
+  }
+
   const {
     videoRef,
-    videoUrl,
+    videoUrl: internalVideoUrl,
     isPlaying,
     isLoaded,
     currentTime,
@@ -40,20 +52,24 @@ const VideoTrimmer: React.FC<VideoTrimmerProps> = ({ videoBlob, onTrimComplete, 
     handleStartTimeChange,
     handleEndTimeChange,
     trimVideo,
-    cancelTrimming, // This is for the TrimProgress cancel button
+    cancelTrimming,
     retryTrimming,
-  } = useVideoTrimmer({ videoBlob, onTrimComplete });
+  } = useVideoTrimmer({ 
+    videoBlob: videoBlob || undefined, 
+    videoUrl: videoUrl || undefined, 
+    onTrimComplete 
+  });
 
   return (
     <Card className="border-0 shadow-xl bg-white/95 backdrop-blur">
       <CardHeader className="text-center">
         <CardTitle className="text-xl font-bold flex items-center justify-center gap-2">
           <Scissors className="h-5 w-5" />
-          Trim Your Video
+          {title}
           <Button
             variant="ghost"
             size="sm"
-            onClick={onCancel} // Main cancel for the whole dialog
+            onClick={onCancel}
             className="ml-auto"
             disabled={isTrimming}
           >
@@ -71,7 +87,7 @@ const VideoTrimmer: React.FC<VideoTrimmerProps> = ({ videoBlob, onTrimComplete, 
         <div className="relative">
           <VideoPlayer
             videoRef={videoRef}
-            videoUrl={videoUrl} // Pass the string URL from the hook
+            videoUrl={internalVideoUrl}
             isPlaying={isPlaying}
             isLoaded={isLoaded}
             currentTime={currentTime}
@@ -87,7 +103,7 @@ const VideoTrimmer: React.FC<VideoTrimmerProps> = ({ videoBlob, onTrimComplete, 
           <TrimProgress
             isVisible={isTrimming}
             progress={trimProgress}
-            onCancel={cancelTrimming} // Hook's cancelTrimming for aborting the trim op
+            onCancel={cancelTrimming}
           />
         </div>
 
@@ -106,7 +122,7 @@ const VideoTrimmer: React.FC<VideoTrimmerProps> = ({ videoBlob, onTrimComplete, 
             <VideoTrimmerActions
               trimmedDuration={trimmedDuration}
               isTrimming={isTrimming}
-              onCancel={onCancel} // Main cancel for the whole dialog
+              onCancel={onCancel}
               onTrimVideo={trimVideo}
             />
           </div>

@@ -28,17 +28,31 @@ const Showcase = () => {
   const [selectedSubmission, setSelectedSubmission] = useState<Submission | null>(null);
   const [autoMode, setAutoMode] = useState(false);
   const [autoTimeoutId, setAutoTimeoutId] = useState<NodeJS.Timeout | null>(null);
-  const [lastFetchTime, setLastFetchTime] = useState<string>('');
 
   useEffect(() => {
     fetchPublishedSubmissions();
     
-    // Set up periodic refresh to catch updates from admin dashboard
-    const refreshInterval = setInterval(() => {
-      fetchPublishedSubmissions();
-    }, 10000); // Check every 10 seconds
+    // Set up real-time subscription for instant updates
+    const channel = supabase
+      .channel('showcase-updates')
+      .on(
+        'postgres_changes',
+        {
+          event: '*', // Listen to all events (INSERT, UPDATE, DELETE)
+          schema: 'public',
+          table: 'submissions',
+          filter: 'is_published=eq.true'
+        },
+        (payload) => {
+          console.log('Real-time update received:', payload);
+          handleRealtimeUpdate(payload);
+        }
+      )
+      .subscribe();
 
-    return () => clearInterval(refreshInterval);
+    return () => {
+      supabase.removeChannel(channel);
+    };
   }, []);
 
   useEffect(() => {
@@ -50,6 +64,47 @@ const Showcase = () => {
     
     return () => stopAutoMode();
   }, [autoMode, submissions]);
+
+  const handleRealtimeUpdate = (payload: any) => {
+    const { eventType, new: newRecord, old: oldRecord } = payload;
+    
+    setSubmissions(prevSubmissions => {
+      switch (eventType) {
+        case 'INSERT':
+          if (newRecord.is_published) {
+            console.log('Adding new published submission:', newRecord.id);
+            return [...prevSubmissions, newRecord];
+          }
+          return prevSubmissions;
+          
+        case 'UPDATE':
+          if (newRecord.is_published) {
+            console.log('Updating submission:', newRecord.id);
+            const existingIndex = prevSubmissions.findIndex(s => s.id === newRecord.id);
+            if (existingIndex >= 0) {
+              // Update existing submission
+              const updated = [...prevSubmissions];
+              updated[existingIndex] = newRecord;
+              return updated;
+            } else {
+              // Add newly published submission
+              return [...prevSubmissions, newRecord];
+            }
+          } else {
+            // Remove unpublished submission
+            console.log('Removing unpublished submission:', newRecord.id);
+            return prevSubmissions.filter(s => s.id !== newRecord.id);
+          }
+          
+        case 'DELETE':
+          console.log('Removing deleted submission:', oldRecord.id);
+          return prevSubmissions.filter(s => s.id !== oldRecord.id);
+          
+        default:
+          return prevSubmissions;
+      }
+    });
+  };
 
   const fetchPublishedSubmissions = async () => {
     try {
@@ -68,14 +123,7 @@ const Showcase = () => {
       }
 
       console.log('Successfully fetched submissions:', data?.length || 0);
-      
-      // Check if data has actually changed to avoid unnecessary re-renders
-      const newLastUpdate = data?.[0]?.updated_at || '';
-      if (newLastUpdate !== lastFetchTime || submissions.length !== (data?.length || 0)) {
-        setSubmissions(data || []);
-        setLastFetchTime(newLastUpdate);
-        console.log('Updated submissions data with latest changes');
-      }
+      setSubmissions(data || []);
     } catch (err) {
       console.error('Unexpected error fetching submissions:', err);
       setError('Failed to load submissions');
@@ -286,29 +334,17 @@ const Showcase = () => {
                         video.currentTime = startTime;
                       }
                       
-                      // Clean up any existing listeners first
-                      const existingListeners = video.getAttribute('data-time-listener');
-                      if (existingListeners) {
-                        video.removeEventListener('timeupdate', window[existingListeners]);
-                        video.removeAttribute('data-time-listener');
-                      }
-                      
                       // Set up time update listener to handle end time
                       if (endTime !== undefined) {
                         const handleTimeUpdate = () => {
                           if (video.currentTime >= endTime) {
                             video.pause();
                             video.removeEventListener('timeupdate', handleTimeUpdate);
-                            video.removeAttribute('data-time-listener');
                             handleVideoEnd();
                           }
                         };
                         
                         video.addEventListener('timeupdate', handleTimeUpdate);
-                        // Store reference for cleanup
-                        const listenerId = `timeListener_${Date.now()}`;
-                        window[listenerId] = handleTimeUpdate;
-                        video.setAttribute('data-time-listener', listenerId);
                       }
                       
                       console.log('Video loaded for showcase playback with trim times:', { startTime, endTime });

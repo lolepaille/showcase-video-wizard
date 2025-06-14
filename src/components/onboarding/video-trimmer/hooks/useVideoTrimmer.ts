@@ -1,4 +1,3 @@
-
 import { useState, useRef, useEffect, useCallback } from 'react';
 
 interface UseVideoTrimmerProps {
@@ -239,7 +238,18 @@ export const useVideoTrimmer = ({ videoBlob, onTrimComplete }: UseVideoTrimmerPr
       const stream = canvas.captureStream(30); // 30 FPS
       
       try {
-        const videoSourceStream = video.captureStream ? video.captureStream() : (video as any).mozCaptureStream ? (video as any).mozCaptureStream() : null;
+        // Fix the TypeScript error by properly casting the video element
+        const videoWithCaptureStream = video as HTMLVideoElement & {
+          captureStream?: () => MediaStream;
+          mozCaptureStream?: () => MediaStream;
+        };
+        
+        const videoSourceStream = videoWithCaptureStream.captureStream 
+          ? videoWithCaptureStream.captureStream() 
+          : videoWithCaptureStream.mozCaptureStream 
+            ? videoWithCaptureStream.mozCaptureStream() 
+            : null;
+            
         if (videoSourceStream && videoSourceStream.getAudioTracks().length > 0) {
            videoSourceStream.getAudioTracks().forEach(track => stream.addTrack(track.clone()));
            console.log('useVideoTrimmer: Added audio track from video element stream.');
@@ -346,15 +356,20 @@ export const useVideoTrimmer = ({ videoBlob, onTrimComplete }: UseVideoTrimmerPr
             const currentRecorder = mediaRecorderInstanceRef.current;
 
             if (!currentVideoRef || !currentRecorder) {
-              if (progressIntervalIdRef.current) clearInterval(progressIntervalIdRef.current);
-              progressIntervalIdRef.current = null;
+              if (progressIntervalIdRef.current) {
+                clearInterval(progressIntervalIdRef.current);
+                progressIntervalIdRef.current = null;
+              }
               return;
             }
-            // This check ensures we only proceed if recorder is 'recording'
-            if (currentRecorder.state !== 'recording') {
+            
+            // Check if recorder is in a valid recording state
+            if (currentRecorder.state === 'inactive' || currentRecorder.state === 'paused') {
                 console.warn(`useVideoTrimmer: Interval fired but recorder not in 'recording' state (state: ${currentRecorder.state}). Clearing interval.`);
-                if (progressIntervalIdRef.current) clearInterval(progressIntervalIdRef.current);
-                progressIntervalIdRef.current = null;
+                if (progressIntervalIdRef.current) {
+                  clearInterval(progressIntervalIdRef.current);
+                  progressIntervalIdRef.current = null;
+                }
                 // Optionally stop recorder if it's in an unexpected state but not inactive
                 if (currentRecorder.state !== 'inactive' && currentRecorder.state !== 'paused') currentRecorder.stop();
                 return;
@@ -367,8 +382,10 @@ export const useVideoTrimmer = ({ videoBlob, onTrimComplete }: UseVideoTrimmerPr
             setTrimProgress(progress);
             
             if (currentVideoRef.currentTime >= endTime || elapsed >= calculatedTrimDuration + 0.1 ) { // Added a small buffer to ensure last frame
-              if (progressIntervalIdRef.current) clearInterval(progressIntervalIdRef.current);
-              progressIntervalIdRef.current = null;
+              if (progressIntervalIdRef.current) {
+                clearInterval(progressIntervalIdRef.current);
+                progressIntervalIdRef.current = null;
+              }
               
               currentVideoRef.pause();
               if (currentRecorder.state === 'recording') { // This check is fine as state is confirmed 'recording' above

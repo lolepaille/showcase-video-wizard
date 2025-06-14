@@ -45,7 +45,7 @@ const QualityChecklist: React.FC<QualityChecklistProps> = ({ checklist, onCheckl
               onCheckedChange={(checked) => onChecklistChange(item.key, checked as boolean)}
               className="mt-1"
             />
-            <div>
+            <div className="flex-1">
               <Label htmlFor={item.key} className="font-medium text-base cursor-pointer">
                 {item.label}
               </Label>

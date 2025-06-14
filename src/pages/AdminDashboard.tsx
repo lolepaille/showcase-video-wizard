@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -8,14 +7,15 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Edit, Trash2, Eye, Download, Users, LogOut } from 'lucide-react';
+import { Edit, Trash2, Eye, Download, Users, LogOut, Plus } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useNavigate } from 'react-router-dom';
+import { useToast } from '@/hooks/use-toast';
 import type { ClusterType } from '@/pages/Index';
 
 interface Submission {
   id: string;
-  first_name: string;
+  full_name: string;
   email: string;
   title: string;
   cluster: ClusterType;
@@ -38,8 +38,10 @@ const AdminDashboard = () => {
   const [submissions, setSubmissions] = useState<Submission[]>([]);
   const [loading, setLoading] = useState(true);
   const [editingSubmission, setEditingSubmission] = useState<Submission | null>(null);
+  const [showAddForm, setShowAddForm] = useState(false);
   const [error, setError] = useState('');
   const navigate = useNavigate();
+  const { toast } = useToast();
 
   useEffect(() => {
     const adminUser = localStorage.getItem('adminUser');
@@ -115,6 +117,10 @@ const AdminDashboard = () => {
       }
 
       setSubmissions(prev => prev.filter(s => s.id !== submissionId));
+      toast({
+        title: "Success",
+        description: "Submission deleted successfully",
+      });
     } catch (err) {
       console.error('Error deleting submission:', err);
       setError('Failed to delete submission');
@@ -137,9 +143,38 @@ const AdminDashboard = () => {
         prev.map(s => s.id === updatedSubmission.id ? updatedSubmission : s)
       );
       setEditingSubmission(null);
+      toast({
+        title: "Success",
+        description: "Submission updated successfully",
+      });
     } catch (err) {
       console.error('Error updating submission:', err);
       setError('Failed to update submission');
+    }
+  };
+
+  const handleAddSubmission = async (newSubmission: Omit<Submission, 'id' | 'created_at'>) => {
+    try {
+      const { data, error } = await supabase
+        .from('submissions')
+        .insert(newSubmission)
+        .select()
+        .single();
+
+      if (error) {
+        setError('Failed to add submission');
+        return;
+      }
+
+      setSubmissions(prev => [data, ...prev]);
+      setShowAddForm(false);
+      toast({
+        title: "Success",
+        description: "Submission added successfully",
+      });
+    } catch (err) {
+      console.error('Error adding submission:', err);
+      setError('Failed to add submission');
     }
   };
 
@@ -185,6 +220,23 @@ const AdminDashboard = () => {
               <Eye className="h-4 w-4 mr-2" />
               View Showcase
             </Button>
+            <Dialog open={showAddForm} onOpenChange={setShowAddForm}>
+              <DialogTrigger asChild>
+                <Button>
+                  <Plus className="h-4 w-4 mr-2" />
+                  Add Entry
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="max-w-2xl">
+                <DialogHeader>
+                  <DialogTitle>Add New Submission</DialogTitle>
+                </DialogHeader>
+                <AddSubmissionForm 
+                  onSave={handleAddSubmission}
+                  onCancel={() => setShowAddForm(false)}
+                />
+              </DialogContent>
+            </Dialog>
             <Button variant="outline" onClick={handleLogout}>
               <LogOut className="h-4 w-4 mr-2" />
               Logout
@@ -216,12 +268,12 @@ const AdminDashboard = () => {
                           {submission.profile_picture_url && (
                             <img 
                               src={submission.profile_picture_url} 
-                              alt={submission.first_name}
+                              alt={submission.full_name}
                               className="w-12 h-12 rounded-full object-cover"
                             />
                           )}
                           <div>
-                            <h3 className="font-semibold">{submission.first_name}</h3>
+                            <h3 className="font-semibold">{submission.full_name}</h3>
                             <p className="text-sm text-gray-600">{submission.email}</p>
                             {submission.title && <p className="text-sm text-gray-500">{submission.title}</p>}
                           </div>
@@ -239,7 +291,7 @@ const AdminDashboard = () => {
                           <Button
                             size="sm"
                             variant="outline"
-                            onClick={() => downloadVideo(submission.video_url!, `${submission.first_name}_video.webm`)}
+                            onClick={() => downloadVideo(submission.video_url!, `${submission.full_name}_video.webm`)}
                           >
                             <Download className="h-4 w-4" />
                           </Button>
@@ -303,6 +355,111 @@ const AdminDashboard = () => {
   );
 };
 
+interface AddSubmissionFormProps {
+  onSave: (submission: Omit<Submission, 'id' | 'created_at'>) => void;
+  onCancel: () => void;
+}
+
+const AddSubmissionForm: React.FC<AddSubmissionFormProps> = ({ onSave, onCancel }) => {
+  const [formData, setFormData] = useState({
+    full_name: '',
+    email: '',
+    title: '',
+    cluster: '' as ClusterType,
+    profile_picture_url: '',
+    video_url: '',
+    notes: {},
+    is_published: false
+  });
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!formData.full_name || !formData.email || !formData.cluster) {
+      alert('Please fill in required fields: Full Name, Email, and Cluster');
+      return;
+    }
+    onSave(formData);
+  };
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-4">
+      <div className="grid gap-4 md:grid-cols-2">
+        <div className="space-y-2">
+          <Label>Full Name *</Label>
+          <Input
+            value={formData.full_name}
+            onChange={(e) => setFormData(prev => ({ ...prev, full_name: e.target.value }))}
+            required
+          />
+        </div>
+        <div className="space-y-2">
+          <Label>Email *</Label>
+          <Input
+            type="email"
+            value={formData.email}
+            onChange={(e) => setFormData(prev => ({ ...prev, email: e.target.value }))}
+            required
+          />
+        </div>
+      </div>
+      
+      <div className="space-y-2">
+        <Label>Title</Label>
+        <Input
+          value={formData.title}
+          onChange={(e) => setFormData(prev => ({ ...prev, title: e.target.value }))}
+        />
+      </div>
+      
+      <div className="space-y-2">
+        <Label>Cluster *</Label>
+        <Select 
+          value={formData.cluster} 
+          onValueChange={(value: ClusterType) => setFormData(prev => ({ ...prev, cluster: value }))}
+        >
+          <SelectTrigger>
+            <SelectValue placeholder="Select a cluster" />
+          </SelectTrigger>
+          <SelectContent>
+            {clusters.map((cluster) => (
+              <SelectItem key={cluster} value={cluster}>
+                {cluster}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+
+      <div className="space-y-2">
+        <Label>Profile Picture URL</Label>
+        <Input
+          value={formData.profile_picture_url}
+          onChange={(e) => setFormData(prev => ({ ...prev, profile_picture_url: e.target.value }))}
+          placeholder="https://example.com/image.jpg"
+        />
+      </div>
+
+      <div className="space-y-2">
+        <Label>Video URL</Label>
+        <Input
+          value={formData.video_url}
+          onChange={(e) => setFormData(prev => ({ ...prev, video_url: e.target.value }))}
+          placeholder="https://example.com/video.mp4"
+        />
+      </div>
+      
+      <div className="flex justify-end gap-2 pt-4">
+        <Button type="button" variant="outline" onClick={onCancel}>
+          Cancel
+        </Button>
+        <Button type="submit">
+          Add Submission
+        </Button>
+      </div>
+    </form>
+  );
+};
+
 interface EditSubmissionFormProps {
   submission: Submission;
   onSave: (submission: Submission) => void;
@@ -321,10 +478,10 @@ const EditSubmissionForm: React.FC<EditSubmissionFormProps> = ({ submission, onS
     <form onSubmit={handleSubmit} className="space-y-4">
       <div className="grid gap-4 md:grid-cols-2">
         <div className="space-y-2">
-          <Label>First Name</Label>
+          <Label>Full Name</Label>
           <Input
-            value={formData.first_name}
-            onChange={(e) => setFormData(prev => ({ ...prev, first_name: e.target.value }))}
+            value={formData.full_name}
+            onChange={(e) => setFormData(prev => ({ ...prev, full_name: e.target.value }))}
           />
         </div>
         <div className="space-y-2">

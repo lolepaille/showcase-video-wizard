@@ -7,15 +7,17 @@ import VideoPreview from './VideoPreview';
 import QualityChecklist from './QualityChecklist';
 import type { SubmissionData, ClusterType } from '@/pages/Index';
 
+interface QualityChecked {
+  audioVisual: boolean;
+  questionsAddressed: boolean;
+  timeLimit: boolean;
+}
+
 interface SubmissionFormProps {
   data: SubmissionData;
-  qualityChecked: {
-    audioVisual: boolean;
-    questionsAddressed: boolean;
-    timeLimit: boolean;
-  };
+  qualityChecked: QualityChecked;
   onContactChange: (field: string, value: string | ClusterType) => void;
-  onQualityCheck: (key: keyof typeof qualityChecked, checked: boolean) => void;
+  onQualityCheck: (key: keyof QualityChecked, checked: boolean) => void;
 }
 
 const SubmissionForm: React.FC<SubmissionFormProps> = ({
@@ -38,11 +40,11 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({
       
       <CardContent className="space-y-8">
         <ContactInformation
-          firstName={data.firstName}
+          fullName={data.fullName}
           email={data.email}
           title={data.title}
           cluster={data.cluster}
-          onFirstNameChange={(value) => onContactChange('firstName', value)}
+          onFullNameChange={(value) => onContactChange('fullName', value)}
           onEmailChange={(value) => onContactChange('email', value)}
           onTitleChange={(value) => onContactChange('title', value)}
           onClusterChange={(value) => onContactChange('cluster', value)}

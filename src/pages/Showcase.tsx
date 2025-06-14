@@ -10,7 +10,7 @@ import type { ClusterType } from '@/pages/Index';
 
 interface Submission {
   id: string;
-  first_name: string;
+  full_name: string;
   email: string;
   title: string;
   cluster: ClusterType;
@@ -67,7 +67,6 @@ const Showcase = () => {
     const randomSubmission = submissions[Math.floor(Math.random() * submissions.length)];
     setSelectedSubmission(randomSubmission);
     
-    // Schedule next auto selection after video duration + 2 seconds
     const timeoutId = setTimeout(() => {
       if (autoMode) {
         setSelectedSubmission(null);
@@ -75,7 +74,7 @@ const Showcase = () => {
           if (autoMode) startAutoMode();
         }, 1000);
       }
-    }, 120000 + 2000); // Assuming max 2 minute videos + 2 second buffer
+    }, 120000 + 2000);
     
     setAutoTimeoutId(timeoutId);
   };
@@ -185,16 +184,16 @@ const Showcase = () => {
                         {submission.profile_picture_url ? (
                           <img
                             src={submission.profile_picture_url}
-                            alt={submission.first_name}
+                            alt={submission.full_name}
                             className="w-24 h-24 rounded-full mx-auto mb-4 object-cover border-4 border-white shadow-lg group-hover:scale-105 transition-transform"
                           />
                         ) : (
                           <div className="w-24 h-24 rounded-full mx-auto mb-4 bg-gradient-to-br from-blue-400 to-purple-400 flex items-center justify-center text-white text-2xl font-bold group-hover:scale-105 transition-transform">
-                            {submission.first_name.charAt(0)}
+                            {submission.full_name.charAt(0)}
                           </div>
                         )}
                         
-                        <h3 className="font-semibold text-lg mb-1">{submission.first_name}</h3>
+                        <h3 className="font-semibold text-lg mb-1">{submission.full_name}</h3>
                         {submission.title && (
                           <p className="text-sm text-gray-600 mb-2">{submission.title}</p>
                         )}
@@ -230,7 +229,6 @@ const Showcase = () => {
           </div>
         )}
 
-        {/* Video Modal */}
         <Dialog open={!!selectedSubmission} onOpenChange={() => setSelectedSubmission(null)}>
           <DialogContent className="max-w-4xl w-full h-[80vh] p-0">
             {selectedSubmission && (
@@ -247,7 +245,7 @@ const Showcase = () => {
                   <div className="flex items-center justify-center h-full text-white">
                     <div className="text-center">
                       <h3 className="text-2xl font-semibold mb-2">
-                        {selectedSubmission.first_name}
+                        {selectedSubmission.full_name}
                       </h3>
                       <p className="text-gray-300">Video not available</p>
                     </div>
@@ -256,7 +254,7 @@ const Showcase = () => {
                 
                 <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-6">
                   <div className="text-white">
-                    <h3 className="text-xl font-semibold">{selectedSubmission.first_name}</h3>
+                    <h3 className="text-xl font-semibold">{selectedSubmission.full_name}</h3>
                     {selectedSubmission.title && (
                       <p className="text-gray-300">{selectedSubmission.title}</p>
                     )}

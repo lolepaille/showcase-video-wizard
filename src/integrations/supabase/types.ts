@@ -35,7 +35,7 @@ export type Database = {
           cluster: Database["public"]["Enums"]["cluster_type"]
           created_at: string | null
           email: string
-          first_name: string
+          full_name: string
           id: string
           is_published: boolean | null
           notes: Json | null
@@ -48,7 +48,7 @@ export type Database = {
           cluster: Database["public"]["Enums"]["cluster_type"]
           created_at?: string | null
           email: string
-          first_name: string
+          full_name: string
           id?: string
           is_published?: boolean | null
           notes?: Json | null
@@ -61,7 +61,7 @@ export type Database = {
           cluster?: Database["public"]["Enums"]["cluster_type"]
           created_at?: string | null
           email?: string
-          first_name?: string
+          full_name?: string
           id?: string
           is_published?: boolean | null
           notes?: Json | null

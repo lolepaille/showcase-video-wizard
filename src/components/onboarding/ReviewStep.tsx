@@ -31,7 +31,7 @@ const ReviewStep: React.FC<ReviewStepProps> = ({ onNext, onPrev, data, updateDat
   };
 
   const isFormValid = 
-    data.firstName.trim() && 
+    data.fullName.trim() && 
     data.email.trim() && 
     data.cluster &&
     data.videoBlob &&
@@ -41,7 +41,6 @@ const ReviewStep: React.FC<ReviewStepProps> = ({ onNext, onPrev, data, updateDat
     try {
       console.log(`Uploading file to ${bucket}/${path}`, file);
       
-      // Convert Blob to File if needed
       let fileToUpload = file;
       if (file instanceof Blob && !(file instanceof File)) {
         fileToUpload = new File([file], path, { type: file.type || 'video/webm' });
@@ -84,26 +83,23 @@ const ReviewStep: React.FC<ReviewStepProps> = ({ onNext, onPrev, data, updateDat
       let profilePictureUrl = null;
       let videoUrl = null;
 
-      // Upload profile picture if provided
       if (data.profilePicture) {
         const timestamp = Date.now();
         const fileExtension = data.profilePicture.name.split('.').pop() || 'jpg';
-        const profilePath = `${timestamp}-${data.firstName.replace(/\s+/g, '-')}-profile.${fileExtension}`;
+        const profilePath = `${timestamp}-${data.fullName.replace(/\s+/g, '-')}-profile.${fileExtension}`;
         profilePictureUrl = await uploadFile(data.profilePicture, 'profile-pictures', profilePath);
       }
 
-      // Upload video
       if (data.videoBlob) {
         const timestamp = Date.now();
-        const videoPath = `${timestamp}-${data.firstName.replace(/\s+/g, '-')}-video.webm`;
+        const videoPath = `${timestamp}-${data.fullName.replace(/\s+/g, '-')}-video.webm`;
         videoUrl = await uploadFile(data.videoBlob, 'videos', videoPath);
       }
 
       console.log('Files uploaded successfully, saving to database...');
 
-      // Save submission to database
       const submissionData = {
-        first_name: data.firstName,
+        full_name: data.fullName,
         email: data.email,
         title: data.title || null,
         cluster: data.cluster as ClusterType,

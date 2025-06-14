@@ -13,7 +13,7 @@ export type OnboardingStep = 'welcome' | 'requirements' | 'questions' | 'recordi
 export type ClusterType = 'Future Tech' | 'Built Environment & Sustainability' | 'Creative Industries' | 'Business & Enterprise' | 'Social Care & Health';
 
 export interface SubmissionData {
-  firstName: string;
+  fullName: string;
   email: string;
   title: string;
   cluster: ClusterType | '';
@@ -29,7 +29,7 @@ export interface SubmissionData {
 const Index = () => {
   const [currentStep, setCurrentStep] = useState<OnboardingStep>('welcome');
   const [submissionData, setSubmissionData] = useState<SubmissionData>({
-    firstName: '',
+    fullName: '',
     email: '',
     title: '',
     cluster: '',
@@ -89,17 +89,24 @@ const Index = () => {
         <div className="animate-fade-in">
           {renderCurrentStep()}
         </div>
-        
-        {/* Visible admin link */}
-        <div className="fixed bottom-4 left-4">
-          <a 
-            href="/admin" 
-            className="text-sm text-blue-600 hover:text-blue-800 bg-white px-3 py-2 rounded-lg shadow-md hover:shadow-lg transition-all duration-200 border border-blue-200"
-            title="Admin Access"
-          >
-            Admin Portal
-          </a>
-        </div>
+      </div>
+      
+      {/* Bottom navigation links */}
+      <div className="fixed bottom-4 left-4 right-4 flex justify-between items-end pointer-events-none">
+        <a 
+          href="/admin" 
+          className="text-sm text-blue-600 hover:text-blue-800 bg-white px-3 py-2 rounded-lg shadow-md hover:shadow-lg transition-all duration-200 border border-blue-200 pointer-events-auto"
+          title="Admin Access"
+        >
+          Admin Portal
+        </a>
+        <a 
+          href="/showcase" 
+          className="text-sm text-green-600 hover:text-green-800 bg-white px-3 py-2 rounded-lg shadow-md hover:shadow-lg transition-all duration-200 border border-green-200 pointer-events-auto"
+          title="View Showcase"
+        >
+          View Showcase
+        </a>
       </div>
     </div>
   );

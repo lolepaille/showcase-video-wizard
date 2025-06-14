@@ -55,11 +55,11 @@ export const useShowcase = () => {
 
   useEffect(() => {
     if (autoMode && submissions.length > 0) {
+      console.log("[AutoMode] Auto Mode ON. Starting sequence...");
       startAutoMode();
     } else {
       stopAutoMode();
     }
-    
     return () => stopAutoMode();
   }, [autoMode, submissions]);
 
@@ -140,20 +140,30 @@ export const useShowcase = () => {
   };
 
   const startAutoMode = () => {
-    if (submissions.length === 0) return;
-    
-    const randomSubmission = submissions[Math.floor(Math.random() * submissions.length)];
+    if (submissions.length === 0) {
+      console.log("[AutoMode] No submissions to display.");
+      return;
+    }
+
+    const randomIndex = Math.floor(Math.random() * submissions.length);
+    const randomSubmission = submissions[randomIndex];
     setSelectedSubmission(randomSubmission);
-    
+    console.log("[AutoMode] Showing submission:", randomSubmission.full_name, randomSubmission.id);
+
+    // 2 mins + 2s
     const timeoutId = setTimeout(() => {
       if (autoMode) {
+        console.log("[AutoMode] Timeout reached, moving to next submission...");
         setSelectedSubmission(null);
         setTimeout(() => {
-          if (autoMode) startAutoMode();
+          if (autoMode) {
+            console.log("[AutoMode] Triggering next random submission after video/timeout.");
+            startAutoMode();
+          }
         }, 1000);
       }
     }, 120000 + 2000);
-    
+
     setAutoTimeoutId(timeoutId);
   };
 
@@ -161,28 +171,37 @@ export const useShowcase = () => {
     if (autoTimeoutId) {
       clearTimeout(autoTimeoutId);
       setAutoTimeoutId(null);
+      console.log("[AutoMode] Auto Mode stopped and timeout cleared.");
     }
   };
 
   const toggleAutoMode = () => {
     setAutoMode(!autoMode);
     if (!autoMode) {
+      console.log("[AutoMode] Turning Auto Mode off, closing submission dialog.");
       setSelectedSubmission(null);
+    } else {
+      console.log("[AutoMode] Turning Auto Mode ON.");
     }
   };
 
   const handleProfileClick = (submission: Submission) => {
     if (autoMode) {
       setAutoMode(false);
+      console.log("[AutoMode] Manual profile click, disabling Auto Mode.");
     }
     setSelectedSubmission(submission);
   };
 
   const handleVideoEnd = () => {
+    console.log("[AutoMode] Video finished playing.");
     if (autoMode) {
       setSelectedSubmission(null);
       setTimeout(() => {
-        if (autoMode) startAutoMode();
+        if (autoMode) {
+          console.log("[AutoMode] Triggering next random submission after video end.");
+          startAutoMode();
+        }
       }, 1000);
     } else {
       setSelectedSubmission(null);

@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -44,6 +45,8 @@ const ReviewStep: React.FC<ReviewStepProps> = ({ onNext, onPrev, data, updateDat
 
   const uploadFile = async (file: File | Blob, bucket: string, path: string): Promise<string | null> => {
     try {
+      console.log(`Uploading file to ${bucket}/${path}`);
+      
       const { data: uploadData, error } = await supabase.storage
         .from(bucket)
         .upload(path, file, {
@@ -60,6 +63,7 @@ const ReviewStep: React.FC<ReviewStepProps> = ({ onNext, onPrev, data, updateDat
         .from(bucket)
         .getPublicUrl(path);
 
+      console.log('Upload successful:', urlData.publicUrl);
       return urlData.publicUrl;
     } catch (error) {
       console.error('Upload error:', error);
@@ -72,6 +76,8 @@ const ReviewStep: React.FC<ReviewStepProps> = ({ onNext, onPrev, data, updateDat
 
     setIsSubmitting(true);
     try {
+      console.log('Starting submission process...');
+      
       let profilePictureUrl = null;
       let videoUrl = null;
 
@@ -107,19 +113,25 @@ const ReviewStep: React.FC<ReviewStepProps> = ({ onNext, onPrev, data, updateDat
         }
       }
 
+      console.log('Files uploaded successfully, saving to database...');
+
       // Save submission to database
+      const submissionData = {
+        first_name: data.firstName,
+        email: data.email,
+        title: data.title || null,
+        cluster: data.cluster as ClusterType,
+        profile_picture_url: profilePictureUrl,
+        video_url: videoUrl,
+        notes: data.notes,
+        is_published: false
+      };
+
+      console.log('Submission data:', submissionData);
+
       const { data: submission, error } = await supabase
         .from('submissions')
-        .insert({
-          first_name: data.firstName,
-          email: data.email,
-          title: data.title || null,
-          cluster: data.cluster as ClusterType,
-          profile_picture_url: profilePictureUrl,
-          video_url: videoUrl,
-          notes: data.notes,
-          is_published: false
-        })
+        .insert(submissionData)
         .select()
         .single();
 
@@ -132,6 +144,8 @@ const ReviewStep: React.FC<ReviewStepProps> = ({ onNext, onPrev, data, updateDat
         });
         return;
       }
+
+      console.log('Submission saved successfully:', submission);
 
       toast({
         title: "Success!",

@@ -1,5 +1,5 @@
 
-import React from 'react';
+import React, { useRef, useEffect } from 'react';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
 import type { Submission } from '@/hooks/useShowcase';
@@ -17,6 +17,53 @@ const VideoDialog: React.FC<VideoDialogProps> = ({
   onClose, 
   onVideoEnd 
 }) => {
+  const videoRef = useRef<HTMLVideoElement>(null);
+
+  // Extract trim times safely as numbers
+  const startTime: number | undefined = submission && submission.notes && typeof submission.notes.startTime === 'number'
+    ? submission.notes.startTime
+    : (submission && submission.notes && submission.notes.startTime !== undefined
+      ? Number(submission.notes.startTime)
+      : undefined);
+  const endTime: number | undefined = submission && submission.notes && typeof submission.notes.endTime === 'number'
+    ? submission.notes.endTime
+    : (submission && submission.notes && submission.notes.endTime !== undefined
+      ? Number(submission.notes.endTime)
+      : undefined);
+
+  // Handle playback logic
+  useEffect(() => {
+    const video = videoRef.current;
+    if (!video || !submission?.video_url) return;
+
+    const onLoadedMetadata = () => {
+      if (typeof startTime === 'number' && startTime > 0 && startTime < video.duration) {
+        console.log('[Trim] Setting video start time to:', startTime);
+        video.currentTime = startTime;
+      }
+    };
+
+    const handleTimeUpdate = () => {
+      if (typeof endTime === 'number' && endTime > 0) {
+        if (video.currentTime >= endTime) {
+          console.log('[Trim] Reached endTime - pausing video at:', endTime);
+          video.pause();
+          onVideoEnd();
+        }
+      }
+    };
+
+    video.addEventListener('loadedmetadata', onLoadedMetadata);
+    video.addEventListener('timeupdate', handleTimeUpdate);
+
+    return () => {
+      video.removeEventListener('loadedmetadata', onLoadedMetadata);
+      video.removeEventListener('timeupdate', handleTimeUpdate);
+    };
+    // Only re-run if a different video is selected
+    // eslint-disable-next-line
+  }, [submission?.video_url, startTime, endTime]); 
+
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent className="max-w-4xl w-full h-[80vh] p-0">
@@ -24,47 +71,12 @@ const VideoDialog: React.FC<VideoDialogProps> = ({
           <div className="relative w-full h-full bg-black">
             {submission.video_url ? (
               <video
+                ref={videoRef}
                 src={submission.video_url}
                 controls
                 autoPlay
                 className="w-full h-full object-contain"
-                onEnded={onVideoEnd}
-                onLoadedMetadata={(e) => {
-                  const video = e.currentTarget;
-                  const startTime = submission.notes?.startTime;
-                  const endTime = submission.notes?.endTime;
-                  
-                  console.log('Video loaded with trim settings:', { 
-                    submissionId: submission.id,
-                    startTime, 
-                    endTime,
-                    notes: submission.notes 
-                  });
-                  
-                  if (startTime !== undefined && startTime > 0) {
-                    console.log('Setting video start time to:', startTime);
-                    video.currentTime = startTime;
-                  }
-                  
-                  // Handle end time during playback
-                  if (endTime !== undefined && endTime > 0) {
-                    const handleTimeUpdate = () => {
-                      if (video.currentTime >= endTime) {
-                        console.log('Video reached end time, stopping playback');
-                        video.pause();
-                        video.removeEventListener('timeupdate', handleTimeUpdate);
-                        onVideoEnd();
-                      }
-                    };
-                    
-                    video.addEventListener('timeupdate', handleTimeUpdate);
-                    
-                    // Cleanup function
-                    return () => {
-                      video.removeEventListener('timeupdate', handleTimeUpdate);
-                    };
-                  }
-                }}
+                // No trimming logic here; handled by useEffect
               />
             ) : (
               <div className="flex items-center justify-center h-full text-white">
@@ -110,3 +122,4 @@ const VideoDialog: React.FC<VideoDialogProps> = ({
 };
 
 export default VideoDialog;
+

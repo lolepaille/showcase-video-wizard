@@ -18,7 +18,6 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     )
 
-    const url = new URL(req.url)
     const method = req.method
 
     if (method === 'GET') {
@@ -49,11 +48,31 @@ serve(async (req) => {
 
     if (method === 'PUT') {
       // Update submission
-      const { id, ...updates } = await req.json()
+      const body = await req.json()
+      const { id, ...updates } = body
+      
+      console.log('Updating submission:', id, 'with updates:', updates)
+      
+      if (!id) {
+        console.error('No submission ID provided for update')
+        return new Response(
+          JSON.stringify({ error: 'Submission ID is required' }),
+          { 
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+            status: 400 
+          }
+        )
+      }
+
+      // Add updated_at timestamp
+      const updateData = {
+        ...updates,
+        updated_at: new Date().toISOString()
+      }
       
       const { data, error } = await supabaseClient
         .from('submissions')
-        .update(updates)
+        .update(updateData)
         .eq('id', id)
         .select()
         .single()
@@ -61,13 +80,15 @@ serve(async (req) => {
       if (error) {
         console.error('Error updating submission:', error)
         return new Response(
-          JSON.stringify({ error: 'Failed to update submission' }),
+          JSON.stringify({ error: `Failed to update submission: ${error.message}` }),
           { 
             headers: { ...corsHeaders, 'Content-Type': 'application/json' },
             status: 500 
           }
         )
       }
+
+      console.log('Successfully updated submission:', data)
 
       return new Response(
         JSON.stringify({ submission: data }),
@@ -79,7 +100,21 @@ serve(async (req) => {
 
     if (method === 'DELETE') {
       // Delete submission
-      const { id } = await req.json()
+      const body = await req.json()
+      const { id } = body
+      
+      console.log('Deleting submission:', id)
+      
+      if (!id) {
+        console.error('No submission ID provided for deletion')
+        return new Response(
+          JSON.stringify({ error: 'Submission ID is required' }),
+          { 
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+            status: 400 
+          }
+        )
+      }
       
       const { error } = await supabaseClient
         .from('submissions')
@@ -89,13 +124,15 @@ serve(async (req) => {
       if (error) {
         console.error('Error deleting submission:', error)
         return new Response(
-          JSON.stringify({ error: 'Failed to delete submission' }),
+          JSON.stringify({ error: `Failed to delete submission: ${error.message}` }),
           { 
             headers: { ...corsHeaders, 'Content-Type': 'application/json' },
             status: 500 
           }
         )
       }
+
+      console.log('Successfully deleted submission:', id)
 
       return new Response(
         JSON.stringify({ success: true }),
@@ -116,7 +153,7 @@ serve(async (req) => {
   } catch (error) {
     console.error('Admin submissions error:', error)
     return new Response(
-      JSON.stringify({ error: 'Internal server error' }),
+      JSON.stringify({ error: `Internal server error: ${error.message}` }),
       { 
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
         status: 500 

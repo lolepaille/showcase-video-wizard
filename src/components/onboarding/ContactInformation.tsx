@@ -2,20 +2,38 @@
 import React from 'react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Mail, User } from 'lucide-react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Mail, User, Briefcase, Building } from 'lucide-react';
+import type { ClusterType } from '@/pages/Index';
 
 interface ContactInformationProps {
   firstName: string;
   email: string;
+  title: string;
+  cluster: ClusterType | '';
   onFirstNameChange: (value: string) => void;
   onEmailChange: (value: string) => void;
+  onTitleChange: (value: string) => void;
+  onClusterChange: (value: ClusterType) => void;
 }
+
+const clusters: ClusterType[] = [
+  'Future Tech',
+  'Built Environment & Sustainability',
+  'Creative Industries',
+  'Business & Enterprise',
+  'Social Care & Health'
+];
 
 const ContactInformation: React.FC<ContactInformationProps> = ({
   firstName,
   email,
+  title,
+  cluster,
   onFirstNameChange,
-  onEmailChange
+  onEmailChange,
+  onTitleChange,
+  onClusterChange
 }) => {
   return (
     <div className="space-y-4">
@@ -47,6 +65,37 @@ const ContactInformation: React.FC<ContactInformationProps> = ({
             onChange={(e) => onEmailChange(e.target.value)}
             required
           />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="title" className="flex items-center gap-2">
+            <Briefcase className="h-4 w-4" />
+            Title
+          </Label>
+          <Input
+            id="title"
+            type="text"
+            placeholder="e.g., Senior Lecturer"
+            value={title}
+            onChange={(e) => onTitleChange(e.target.value)}
+          />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="cluster" className="flex items-center gap-2">
+            <Building className="h-4 w-4" />
+            Cluster *
+          </Label>
+          <Select value={cluster} onValueChange={onClusterChange}>
+            <SelectTrigger>
+              <SelectValue placeholder="Select your cluster" />
+            </SelectTrigger>
+            <SelectContent>
+              {clusters.map((clusterOption) => (
+                <SelectItem key={clusterOption} value={clusterOption}>
+                  {clusterOption}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
       </div>
     </div>

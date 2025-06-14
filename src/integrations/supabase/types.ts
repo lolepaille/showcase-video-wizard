@@ -9,7 +9,69 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
-      [_ in never]: never
+      admin_users: {
+        Row: {
+          created_at: string | null
+          id: string
+          password_hash: string
+          username: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          password_hash: string
+          username: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          password_hash?: string
+          username?: string
+        }
+        Relationships: []
+      }
+      submissions: {
+        Row: {
+          cluster: Database["public"]["Enums"]["cluster_type"]
+          created_at: string | null
+          email: string
+          first_name: string
+          id: string
+          is_published: boolean | null
+          notes: Json | null
+          profile_picture_url: string | null
+          title: string | null
+          updated_at: string | null
+          video_url: string | null
+        }
+        Insert: {
+          cluster: Database["public"]["Enums"]["cluster_type"]
+          created_at?: string | null
+          email: string
+          first_name: string
+          id?: string
+          is_published?: boolean | null
+          notes?: Json | null
+          profile_picture_url?: string | null
+          title?: string | null
+          updated_at?: string | null
+          video_url?: string | null
+        }
+        Update: {
+          cluster?: Database["public"]["Enums"]["cluster_type"]
+          created_at?: string | null
+          email?: string
+          first_name?: string
+          id?: string
+          is_published?: boolean | null
+          notes?: Json | null
+          profile_picture_url?: string | null
+          title?: string | null
+          updated_at?: string | null
+          video_url?: string | null
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
@@ -18,7 +80,12 @@ export type Database = {
       [_ in never]: never
     }
     Enums: {
-      [_ in never]: never
+      cluster_type:
+        | "Future Tech"
+        | "Built Environment & Sustainability"
+        | "Creative Industries"
+        | "Business & Enterprise"
+        | "Social Care & Health"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -133,6 +200,14 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      cluster_type: [
+        "Future Tech",
+        "Built Environment & Sustainability",
+        "Creative Industries",
+        "Business & Enterprise",
+        "Social Care & Health",
+      ],
+    },
   },
 } as const

@@ -1,1 +1,8 @@
+
 project_id = "mzprzuwbpknbzgtbmzix"
+
+[functions.admin-auth]
+verify_jwt = false
+
+[functions.admin-submissions]
+verify_jwt = false

@@ -4,8 +4,9 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Trophy, Calendar, Gift } from 'lucide-react';
-import type { SubmissionData } from '@/pages/Index';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Trophy, Calendar, Gift, Upload } from 'lucide-react';
+import type { SubmissionData, ClusterType } from '@/pages/Index';
 
 interface WelcomeStepProps {
   onNext: () => void;
@@ -13,13 +14,30 @@ interface WelcomeStepProps {
   updateData: (data: Partial<SubmissionData>) => void;
 }
 
+const clusters: ClusterType[] = [
+  'Future Tech',
+  'Built Environment & Sustainability',
+  'Creative Industries',
+  'Business & Enterprise',
+  'Social Care & Health'
+];
+
 const WelcomeStep: React.FC<WelcomeStepProps> = ({ onNext, data, updateData }) => {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (data.firstName.trim()) {
+    if (data.firstName.trim() && data.email.trim() && data.cluster) {
       onNext();
     }
   };
+
+  const handleProfilePictureChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      updateData({ profilePicture: file });
+    }
+  };
+
+  const isFormValid = data.firstName.trim() && data.email.trim() && data.cluster;
 
   return (
     <div className="max-w-2xl mx-auto">
@@ -38,19 +56,85 @@ const WelcomeStep: React.FC<WelcomeStepProps> = ({ onNext, data, updateData }) =
         
         <CardContent className="space-y-6">
           <form onSubmit={handleSubmit} className="space-y-6">
+            <div className="grid gap-4 md:grid-cols-2">
+              <div className="space-y-2">
+                <Label htmlFor="firstName" className="text-base font-medium">
+                  First Name *
+                </Label>
+                <Input
+                  id="firstName"
+                  type="text"
+                  placeholder="Enter your first name"
+                  value={data.firstName}
+                  onChange={(e) => updateData({ firstName: e.target.value })}
+                  required
+                  className="text-lg h-12"
+                />
+              </div>
+              
+              <div className="space-y-2">
+                <Label htmlFor="email" className="text-base font-medium">
+                  Email Address *
+                </Label>
+                <Input
+                  id="email"
+                  type="email"
+                  placeholder="your.email@rmit.edu.au"
+                  value={data.email}
+                  onChange={(e) => updateData({ email: e.target.value })}
+                  required
+                  className="text-lg h-12"
+                />
+              </div>
+            </div>
+
             <div className="space-y-2">
-              <Label htmlFor="firstName" className="text-base font-medium">
-                First Name *
+              <Label htmlFor="title" className="text-base font-medium">
+                Title
               </Label>
               <Input
-                id="firstName"
+                id="title"
                 type="text"
-                placeholder="Enter your first name"
-                value={data.firstName}
-                onChange={(e) => updateData({ firstName: e.target.value })}
-                required
+                placeholder="e.g., Senior Lecturer, Associate Professor"
+                value={data.title}
+                onChange={(e) => updateData({ title: e.target.value })}
                 className="text-lg h-12"
               />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="cluster" className="text-base font-medium">
+                Cluster *
+              </Label>
+              <Select value={data.cluster} onValueChange={(value: ClusterType) => updateData({ cluster: value })}>
+                <SelectTrigger className="text-lg h-12">
+                  <SelectValue placeholder="Select your cluster" />
+                </SelectTrigger>
+                <SelectContent>
+                  {clusters.map((cluster) => (
+                    <SelectItem key={cluster} value={cluster}>
+                      {cluster}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="profilePicture" className="text-base font-medium flex items-center gap-2">
+                <Upload className="h-4 w-4" />
+                Profile Picture (Optional)
+              </Label>
+              <Input
+                id="profilePicture"
+                type="file"
+                accept="image/*"
+                onChange={handleProfilePictureChange}
+                className="text-lg h-12 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-blue-700 hover:file:bg-blue-100"
+              />
+              {data.profilePicture && (
+                <p className="text-sm text-green-600">✓ {data.profilePicture.name}</p>
+              )}
             </div>
 
             <div className="bg-blue-50 p-6 rounded-lg border border-blue-200">
@@ -82,7 +166,7 @@ const WelcomeStep: React.FC<WelcomeStepProps> = ({ onNext, data, updateData }) =
             <Button 
               type="submit" 
               className="w-full h-12 text-lg bg-gradient-to-r from-blue-600 to-red-600 hover:from-blue-700 hover:to-red-700"
-              disabled={!data.firstName.trim()}
+              disabled={!isFormValid}
             >
               Let's Get Started
             </Button>

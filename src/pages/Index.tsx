@@ -10,9 +10,14 @@ import ProgressBar from '@/components/onboarding/ProgressBar';
 
 export type OnboardingStep = 'welcome' | 'requirements' | 'questions' | 'recording' | 'review' | 'confirmation';
 
+export type ClusterType = 'Future Tech' | 'Built Environment & Sustainability' | 'Creative Industries' | 'Business & Enterprise' | 'Social Care & Health';
+
 export interface SubmissionData {
   firstName: string;
   email: string;
+  title: string;
+  cluster: ClusterType | '';
+  profilePicture?: File;
   notes: {
     question1: string;
     question2: string;
@@ -26,6 +31,8 @@ const Index = () => {
   const [submissionData, setSubmissionData] = useState<SubmissionData>({
     firstName: '',
     email: '',
+    title: '',
+    cluster: '',
     notes: {
       question1: '',
       question2: '',
@@ -81,6 +88,17 @@ const Index = () => {
         )}
         <div className="animate-fade-in">
           {renderCurrentStep()}
+        </div>
+        
+        {/* Discreet admin link */}
+        <div className="fixed bottom-4 left-4 opacity-10 hover:opacity-100 transition-opacity">
+          <a 
+            href="/admin" 
+            className="text-xs text-gray-400 hover:text-gray-600"
+            title="Admin Access"
+          >
+            •
+          </a>
         </div>
       </div>
     </div>

@@ -18,6 +18,7 @@ interface Submission {
   video_url: string | null;
   notes: any;
   is_published: boolean;
+  updated_at: string;
 }
 
 const Showcase = () => {
@@ -27,9 +28,17 @@ const Showcase = () => {
   const [selectedSubmission, setSelectedSubmission] = useState<Submission | null>(null);
   const [autoMode, setAutoMode] = useState(false);
   const [autoTimeoutId, setAutoTimeoutId] = useState<NodeJS.Timeout | null>(null);
+  const [lastFetchTime, setLastFetchTime] = useState<string>('');
 
   useEffect(() => {
     fetchPublishedSubmissions();
+    
+    // Set up periodic refresh to catch updates from admin dashboard
+    const refreshInterval = setInterval(() => {
+      fetchPublishedSubmissions();
+    }, 10000); // Check every 10 seconds
+
+    return () => clearInterval(refreshInterval);
   }, []);
 
   useEffect(() => {
@@ -46,7 +55,6 @@ const Showcase = () => {
     try {
       console.log('Fetching published submissions for showcase...');
       
-      // First try to fetch via Supabase client
       const { data, error } = await supabase
         .from('submissions')
         .select('*')
@@ -60,7 +68,14 @@ const Showcase = () => {
       }
 
       console.log('Successfully fetched submissions:', data?.length || 0);
-      setSubmissions(data || []);
+      
+      // Check if data has actually changed to avoid unnecessary re-renders
+      const newLastUpdate = data?.[0]?.updated_at || '';
+      if (newLastUpdate !== lastFetchTime || submissions.length !== (data?.length || 0)) {
+        setSubmissions(data || []);
+        setLastFetchTime(newLastUpdate);
+        console.log('Updated submissions data with latest changes');
+      }
     } catch (err) {
       console.error('Unexpected error fetching submissions:', err);
       setError('Failed to load submissions');
@@ -261,13 +276,21 @@ const Showcase = () => {
                     onEnded={handleVideoEnd}
                     onLoadedMetadata={(e) => {
                       const video = e.currentTarget;
-                      // Use stored start/end times from notes if available
                       const startTime = selectedSubmission.notes?.startTime;
                       const endTime = selectedSubmission.notes?.endTime;
+                      
+                      console.log('Loading video with trim times:', { startTime, endTime });
                       
                       if (startTime !== undefined) {
                         console.log('Setting video start time to:', startTime);
                         video.currentTime = startTime;
+                      }
+                      
+                      // Clean up any existing listeners first
+                      const existingListeners = video.getAttribute('data-time-listener');
+                      if (existingListeners) {
+                        video.removeEventListener('timeupdate', window[existingListeners]);
+                        video.removeAttribute('data-time-listener');
                       }
                       
                       // Set up time update listener to handle end time
@@ -276,11 +299,16 @@ const Showcase = () => {
                           if (video.currentTime >= endTime) {
                             video.pause();
                             video.removeEventListener('timeupdate', handleTimeUpdate);
-                            // Trigger video end handler
+                            video.removeAttribute('data-time-listener');
                             handleVideoEnd();
                           }
                         };
+                        
                         video.addEventListener('timeupdate', handleTimeUpdate);
+                        // Store reference for cleanup
+                        const listenerId = `timeListener_${Date.now()}`;
+                        window[listenerId] = handleTimeUpdate;
+                        video.setAttribute('data-time-listener', listenerId);
                       }
                       
                       console.log('Video loaded for showcase playback with trim times:', { startTime, endTime });

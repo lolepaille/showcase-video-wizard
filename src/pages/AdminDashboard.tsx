@@ -81,19 +81,23 @@ const AdminDashboard = () => {
 
   const handleTogglePublish = async (submission: Submission) => {
     try {
+      console.log('Attempting to toggle publish status for submission:', submission.id);
+      
       const { data: responseData, error: invokeError } = await supabase.functions.invoke('admin-submissions', {
         method: 'PUT',
-        body: {
+        body: JSON.stringify({
           id: submission.id,
           is_published: !submission.is_published
-        }
+        })
       });
+
+      console.log('Response from admin-submissions:', { responseData, invokeError });
 
       if (invokeError) {
         console.error('Error invoking admin-submissions for toggle publish:', invokeError);
         const errorMessage = 
-          (invokeError.data && invokeError.data.error) || // Error from Edge Function's JSON response
-          invokeError.message || // General message from invokeError
+          (invokeError.data && invokeError.data.error) || 
+          invokeError.message || 
           'Failed to update submission status.';
         
         setError(errorMessage);
@@ -112,7 +116,7 @@ const AdminDashboard = () => {
         title: "Success",
         description: `Submission ${!submission.is_published ? 'published' : 'unpublished'} successfully.`,
       });
-      setError(''); // Clear any previous error
+      setError('');
 
     } catch (err) {
       console.error('Network/unexpected error during toggle publish:', err);

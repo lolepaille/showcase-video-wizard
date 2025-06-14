@@ -1,9 +1,11 @@
+
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, OPTIONS',
 }
 
 serve(async (req) => {
@@ -55,28 +57,20 @@ serve(async (req) => {
       console.log('Processing PUT request for submission update');
       
       let body;
-      let bodyParseError = null;
-
-      // Try to parse using req.json(), fallback to req.text()+JSON.parse
       try {
-        body = await req.json();
-        console.log('Parsed request body via req.json():', JSON.stringify(body, null, 2));
-      } catch (jsonErr) {
-        // Try text
-        try {
-          const bodyText = await req.text();
-          console.log('Raw request body (fallback .text()):', bodyText);
-          body = JSON.parse(bodyText);
-          console.log('Parsed request body from .text():', JSON.stringify(body, null, 2));
-        } catch (parseErr) {
-          bodyParseError = parseErr;
+        const bodyText = await req.text();
+        console.log('Raw request body:', bodyText);
+        
+        if (!bodyText) {
+          throw new Error('Empty request body');
         }
-      }
-
-      if (!body || typeof body !== "object" || Array.isArray(body)) {
-        console.error('Error parsing request body for PUT. Invalid or empty body.', bodyParseError);
+        
+        body = JSON.parse(bodyText);
+        console.log('Parsed request body:', JSON.stringify(body, null, 2));
+      } catch (parseError) {
+        console.error('Error parsing request body:', parseError);
         return new Response(
-          JSON.stringify({ error: 'Invalid JSON in request body', details: bodyParseError?.message || null }),
+          JSON.stringify({ error: 'Invalid JSON in request body', details: parseError.message }),
           {
             headers: { ...corsHeaders, 'Content-Type': 'application/json' },
             status: 400
@@ -86,7 +80,7 @@ serve(async (req) => {
 
       const { id, ...updateFields } = body;
       if (!id) {
-        console.error('No submission ID provided for update. Request body:', JSON.stringify(body));
+        console.error('No submission ID provided for update');
         return new Response(
           JSON.stringify({ error: 'Submission ID is required' }),
           {
@@ -152,7 +146,8 @@ serve(async (req) => {
       
       let body;
       try {
-        body = await req.json();
+        const bodyText = await req.text();
+        body = JSON.parse(bodyText);
       } catch (parseError) {
         console.error('Error parsing request body for DELETE:', parseError);
         return new Response(

@@ -22,6 +22,7 @@ interface Submission {
 const Showcase = () => {
   const [submissions, setSubmissions] = useState<Submission[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
   const [selectedSubmission, setSelectedSubmission] = useState<Submission | null>(null);
   const [autoMode, setAutoMode] = useState(false);
   const [autoTimeoutId, setAutoTimeoutId] = useState<NodeJS.Timeout | null>(null);
@@ -42,6 +43,9 @@ const Showcase = () => {
 
   const fetchPublishedSubmissions = async () => {
     try {
+      console.log('Fetching published submissions for showcase...');
+      
+      // First try to fetch via Supabase client
       const { data, error } = await supabase
         .from('submissions')
         .select('*')
@@ -49,13 +53,16 @@ const Showcase = () => {
         .order('created_at', { ascending: false });
 
       if (error) {
-        console.error('Error fetching submissions:', error);
+        console.error('Error fetching submissions via client:', error);
+        setError('Failed to load submissions');
         return;
       }
 
+      console.log('Successfully fetched submissions:', data?.length || 0);
       setSubmissions(data || []);
     } catch (err) {
-      console.error('Error:', err);
+      console.error('Unexpected error fetching submissions:', err);
+      setError('Failed to load submissions');
     } finally {
       setLoading(false);
     }
@@ -125,6 +132,17 @@ const Showcase = () => {
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
           <p>Loading showcase...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-red-50 flex items-center justify-center">
+        <div className="text-center">
+          <p className="text-red-600 mb-4">{error}</p>
+          <Button onClick={fetchPublishedSubmissions}>Try Again</Button>
         </div>
       </div>
     );

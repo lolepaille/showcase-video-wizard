@@ -1,6 +1,5 @@
 
 import { useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
 
 interface TrimVideoParams {
   videoUrl: string;
@@ -34,24 +33,27 @@ export function useVideoTrimAPI() {
       formData.append("start", String(start));
       formData.append("end", String(end));
 
-      // Use the Supabase functions invoke method instead of direct fetch
-      const { data, error: functionError } = await supabase.functions.invoke('trim-video', {
+      // Make direct fetch call to the edge function
+      const response = await fetch(`https://mzprzuwbpknbzgtbmzix.supabase.co/functions/v1/trim-video`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im16cHJ6dXdicGtuYnpndGJteml4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDk3OTM0ODUsImV4cCI6MjA2NTM2OTQ4NX0.sywWkN89zNLlTl69XGwN13xqb-OT-__UBlVSaHYKlTM`,
+          'apikey': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im16cHJ6dXdicGtuYnpndGJteml4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDk3OTM0ODUsImV4cCI6MjA2NTM2OTQ4NX0.sywWkN89zNLlTl69XGwN13xqb-OT-__UBlVSaHYKlTM',
+        },
         body: formData,
       });
 
-      if (functionError) {
-        console.error('Supabase function error:', functionError);
-        throw new Error(functionError.message || "Failed to trim video");
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error('Trim request failed:', response.status, errorText);
+        throw new Error(`Trim request failed: ${response.status} ${errorText}`);
       }
 
-      // The response should be a blob
-      if (data instanceof Blob) {
-        console.log('Trim successful, received blob of size:', data.size);
-        return data;
-      } else {
-        console.error('Unexpected response type:', typeof data);
-        throw new Error("Invalid response from trim service");
-      }
+      // Get the response as a blob
+      const blob = await response.blob();
+      console.log('Trim successful, received blob of size:', blob.size);
+      
+      return blob;
     } catch (err) {
       console.error('Trim video error:', err);
       const errorMessage = (err as Error).message || "Unknown error occurred";

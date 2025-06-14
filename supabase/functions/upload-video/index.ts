@@ -16,7 +16,7 @@ serve(async (req) => {
     if (req.method !== "POST") {
       return new Response(JSON.stringify({ error: "Method Not Allowed" }), {
         status: 405,
-        headers: corsHeaders,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
@@ -25,10 +25,11 @@ serve(async (req) => {
     if (!file || !(file instanceof File)) {
       return new Response(JSON.stringify({ error: "No file provided" }), {
         status: 400,
-        headers: corsHeaders,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
+    // Create Supabase client with service role key for uploads
     const supabaseClient = createClient(
       Deno.env.get("SUPABASE_URL") ?? "",
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? ""
@@ -37,15 +38,18 @@ serve(async (req) => {
     const fileName = `${Date.now()}-${file.name.replace(/\s+/g, "_")}`;
     const path = fileName;
 
+    console.log(`Uploading video: ${fileName} to videos bucket`);
+
     // Upload to bucket videos
     const { data, error } = await supabaseClient.storage
       .from("videos")
       .upload(path, file, { upsert: true });
 
     if (error) {
+      console.error("Storage upload error:", error);
       return new Response(JSON.stringify({ error: error.message }), {
         status: 500,
-        headers: corsHeaders,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
@@ -53,14 +57,17 @@ serve(async (req) => {
       .from("videos")
       .getPublicUrl(path);
 
+    console.log(`Upload successful. Public URL: ${urlData?.publicUrl}`);
+
     return new Response(JSON.stringify({ url: urlData?.publicUrl || null }), {
       status: 200,
-      headers: corsHeaders,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (e) {
+    console.error("Function error:", e);
     return new Response(JSON.stringify({ error: e.message || "Error" }), {
       status: 500,
-      headers: corsHeaders,
+      headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
 });

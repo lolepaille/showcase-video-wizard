@@ -1,10 +1,10 @@
+
 import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Upload, X } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
-import { supabase } from '@/integrations/supabase/client';
 
 interface FileUploadFieldProps {
   label: string;
@@ -34,20 +34,10 @@ const FileUploadField: React.FC<FileUploadFieldProps> = ({
 
       console.log(`Uploading file via API: ${endpoint}`);
 
-      // Get the session to include authorization headers
-      const { data: { session } } = await supabase.auth.getSession();
-      
-      const headers: HeadersInit = {};
-      if (session?.access_token) {
-        headers['Authorization'] = `Bearer ${session.access_token}`;
-      }
-      headers['apikey'] = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im16cHJ6dXdicGtuYnpndGJteml4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDk3OTM0ODUsImV4cCI6MjA2NTM2OTQ4NX0.sywWkN89zNLlTl69XGwN13xqb-OT-__UBlVSaHYKlTM';
-
       const res = await fetch(
         `https://mzprzuwbpknbzgtbmzix.supabase.co/functions/v1/${endpoint}`,
         {
           method: "POST",
-          headers,
           body: formData,
         }
       );

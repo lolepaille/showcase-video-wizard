@@ -135,7 +135,7 @@ const VideoTrimmer: React.FC<VideoTrimmerProps> = ({ videoBlob, onTrimComplete, 
         }
         videoRef.current.play().catch(err => {
           console.error("VideoTrimmer: Error toggling play/pause:", err);
-          handleVideoError(err); // Use a generic event or adapt handleVideoError
+          handleVideoError(err as any); 
         });
       }
     }
@@ -233,7 +233,7 @@ const VideoTrimmer: React.FC<VideoTrimmerProps> = ({ videoBlob, onTrimComplete, 
       try {
         if (video.srcObject && (video.srcObject as MediaStream).getAudioTracks().length > 0) {
            (video.srcObject as MediaStream).getAudioTracks().forEach(track => stream.addTrack(track.clone()));
-        } else if (videoRef.current.src && videoRef.current.mozHasAudio !== false && videoRef.current.webkitAudioDecodedByteCount !== undefined) { // Heuristics for audio in src URL
+        } else if (videoRef.current.src && (videoRef.current as any).mozHasAudio !== false && (videoRef.current as any).webkitAudioDecodedByteCount !== undefined) { // Fixed TS2339
             const audioContext = new AudioContext();
             const sourceNode = audioContext.createMediaElementSource(video);
             const destNode = audioContext.createMediaStreamDestination();
@@ -279,11 +279,11 @@ const VideoTrimmer: React.FC<VideoTrimmerProps> = ({ videoBlob, onTrimComplete, 
             console.error('VideoTrimmer: No data chunks recorded.');
         }
         setIsTrimming(false);
-        setTrimProgress(100); // Or 0 if error
+        setTrimProgress(100); 
         mediaRecorderInstanceRef.current = null;
       };
       
-      mediaRecorder.onerror = (event) => {
+      mediaRecorder.onerror = (event: Event) => { // event is type ErrorEvent
         console.error('VideoTrimmer: MediaRecorder error:', event);
         if (progressIntervalIdRef.current) {
           clearInterval(progressIntervalIdRef.current);
@@ -297,7 +297,7 @@ const VideoTrimmer: React.FC<VideoTrimmerProps> = ({ videoBlob, onTrimComplete, 
       mediaRecorder.start();
       console.log('VideoTrimmer: MediaRecorder started');
       
-      video.pause(); // Ensure it's paused before setting currentTime
+      video.pause(); 
       video.currentTime = startTime;
       console.log('VideoTrimmer: Set video currentTime to startTime:', startTime);
       
@@ -321,8 +321,7 @@ const VideoTrimmer: React.FC<VideoTrimmerProps> = ({ videoBlob, onTrimComplete, 
             const progress = Math.min((elapsed / calculatedTrimDuration) * 100, 100);
             setTrimProgress(progress);
             
-            // Check video.currentTime as primary, elapsed as fallback
-            if (videoRef.current.currentTime >= endTime || elapsed >= calculatedTrimDuration + 0.5 ) { // Add a small buffer for elapsed
+            if (videoRef.current.currentTime >= endTime || elapsed >= calculatedTrimDuration + 0.5 ) { 
               if (progressIntervalIdRef.current) clearInterval(progressIntervalIdRef.current);
               progressIntervalIdRef.current = null;
               
@@ -332,7 +331,7 @@ const VideoTrimmer: React.FC<VideoTrimmerProps> = ({ videoBlob, onTrimComplete, 
               }
               console.log('VideoTrimmer: Trimming duration reached or passed.');
             }
-          }, Math.floor(1000 / 30)) as unknown as number; // Approx 30fps
+          }, Math.floor(1000 / 30)) as unknown as number; 
 
         } catch (playError) {
           console.error('VideoTrimmer: Error starting playback after seek:', playError);
@@ -343,32 +342,41 @@ const VideoTrimmer: React.FC<VideoTrimmerProps> = ({ videoBlob, onTrimComplete, 
           setIsTrimming(false);
         }
       };
-      // Add a timeout for onseeked, in case it never fires
+      
       const seekTimeout = setTimeout(() => {
         if (mediaRecorderInstanceRef.current && mediaRecorderInstanceRef.current.state === 'recording' && !progressIntervalIdRef.current) {
             console.error('VideoTrimmer: Seek operation timed out or did not complete as expected.');
             setError('Video seeking failed or timed out. Cannot trim.');
-            mediaRecorderInstanceRef.current.stop(); // This will trigger onstop, which should clear interval and set isTrimming false
+            if (mediaRecorderInstanceRef.current.state !== 'inactive') {
+                 mediaRecorderInstanceRef.current.stop();
+            }
             setIsTrimming(false);
         }
-      }, 5000); // 5 seconds timeout for seek
+      }, 5000); 
 
-      // Clear seekTimeout in onseeked or if recorder stops early
       const originalOnStop = mediaRecorder.onstop;
-      mediaRecorder.onstop = () => {
+      mediaRecorder.onstop = (event: Event) => { // Fixed TS2554 by adding event and using .call
         clearTimeout(seekTimeout);
-        if (originalOnStop) originalOnStop();
+        if (originalOnStop) {
+          // 'this' for onstop is the MediaRecorder itself.
+          originalOnStop.call(mediaRecorder, event);
+        }
       };
       const originalOnError = mediaRecorder.onerror;
-      mediaRecorder.onerror = (event) => {
+      mediaRecorder.onerror = (event: Event) => { // Fixed TS2684 by adding event type and using .call
         clearTimeout(seekTimeout);
-        if (originalOnError) originalOnError(event);
+        if (originalOnError) {
+          // 'this' for onerror is the MediaRecorder itself.
+          originalOnError.call(mediaRecorder, event);
+        }
       }
       if (video.onseeked) {
-          const originalOnSeeked = video.onseeked;
-          video.onseeked = (event) => {
+          const originalOnSeeked = video.onseeked as (this: HTMLVideoElement, ev: Event) => any; // Cast for safety
+          video.onseeked = (event: Event) => {
               clearTimeout(seekTimeout);
-              if (typeof originalOnSeeked === 'function') originalOnSeeked.call(video, event);
+              if (typeof originalOnSeeked === 'function') {
+                originalOnSeeked.call(video, event);
+              }
           }
       }
 
@@ -392,9 +400,10 @@ const VideoTrimmer: React.FC<VideoTrimmerProps> = ({ videoBlob, onTrimComplete, 
     console.log('VideoTrimmer: cancelTrimming called.');
     if (mediaRecorderInstanceRef.current && mediaRecorderInstanceRef.current.state !== 'inactive') {
       // Detach handlers to prevent them from running after explicit stop
-      mediaRecorderInstanceRef.current.onstop = null;
-      mediaRecorderInstanceRef.current.ondataavailable = null;
-      mediaRecorderInstanceRef.current.onerror = null;
+      // This is important if the original handlers might cause side effects we don't want on cancel
+      (mediaRecorderInstanceRef.current as MediaRecorder).onstop = null; 
+      (mediaRecorderInstanceRef.current as MediaRecorder).ondataavailable = null;
+      (mediaRecorderInstanceRef.current as MediaRecorder).onerror = null;
       mediaRecorderInstanceRef.current.stop();
       console.log('VideoTrimmer: MediaRecorder stopped by cancelTrimming.');
     }
@@ -412,8 +421,7 @@ const VideoTrimmer: React.FC<VideoTrimmerProps> = ({ videoBlob, onTrimComplete, 
 
     setIsTrimming(false);
     setTrimProgress(0);
-    // Don't clear error, user might want to see why it was cancelled or what went wrong before
-    // setError(''); 
+    // setError(''); // Don't clear error on cancel, user might want to see it
     console.log('VideoTrimmer: Video trimming process cancelled by user action.');
   };
 
@@ -421,10 +429,9 @@ const VideoTrimmer: React.FC<VideoTrimmerProps> = ({ videoBlob, onTrimComplete, 
     console.log('VideoTrimmer: Retrying trimming.');
     setError('');
     setTrimProgress(0);
-    // Ensure states are reset before trying again
     setIsTrimming(false); 
-    if (mediaRecorderInstanceRef.current || progressIntervalIdRef.current) { // If somehow still active
-        cancelTrimming(); // Full cleanup
+    if (mediaRecorderInstanceRef.current || progressIntervalIdRef.current) {
+        cancelTrimming();
     }
     trimVideo();
   };
@@ -440,7 +447,7 @@ const VideoTrimmer: React.FC<VideoTrimmerProps> = ({ videoBlob, onTrimComplete, 
           <Button
             variant="ghost"
             size="sm"
-            onClick={onCancel} // This is to cancel the whole trimming step, not the active trim operation
+            onClick={onCancel}
             className="ml-auto"
             disabled={isTrimming}
           >
@@ -453,7 +460,7 @@ const VideoTrimmer: React.FC<VideoTrimmerProps> = ({ videoBlob, onTrimComplete, 
       </CardHeader>
       
       <CardContent className="space-y-6">
-        <ErrorDisplay error={error} onRetry={isLoaded ? retryTrimming : undefined} />
+        <ErrorDisplay error={error} onRetry={isLoaded && !isTrimming ? retryTrimming : undefined} />
 
         <div className="relative">
           <VideoPlayer
@@ -474,7 +481,7 @@ const VideoTrimmer: React.FC<VideoTrimmerProps> = ({ videoBlob, onTrimComplete, 
           <TrimProgress
             isVisible={isTrimming}
             progress={trimProgress}
-            onCancel={cancelTrimming} // This cancels the active trim operation
+            onCancel={cancelTrimming}
           />
         </div>
 
@@ -492,8 +499,8 @@ const VideoTrimmer: React.FC<VideoTrimmerProps> = ({ videoBlob, onTrimComplete, 
 
             <VideoTrimmerActions
               trimmedDuration={trimmedDuration}
-              isTrimming={isTrimming} // This prop might not be needed by VideoTrimmerActions itself
-              onCancel={onCancel} // To cancel the whole step
+              isTrimming={isTrimming}
+              onCancel={onCancel} 
               onTrimVideo={trimVideo}
             />
           </div>

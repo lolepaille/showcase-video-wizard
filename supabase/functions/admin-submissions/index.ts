@@ -8,6 +8,8 @@ const corsHeaders = {
 }
 
 serve(async (req) => {
+  console.log(`${req.method} request received`)
+  
   if (req.method === 'OPTIONS') {
     return new Response(null, { headers: corsHeaders })
   }
@@ -21,7 +23,8 @@ serve(async (req) => {
     const method = req.method
 
     if (method === 'GET') {
-      // Get all submissions for admin
+      console.log('Fetching all submissions')
+      
       const { data: submissions, error } = await supabaseClient
         .from('submissions')
         .select('*')
@@ -38,6 +41,8 @@ serve(async (req) => {
         )
       }
 
+      console.log(`Successfully fetched ${submissions?.length || 0} submissions`)
+      
       return new Response(
         JSON.stringify({ submissions }),
         { 
@@ -47,11 +52,24 @@ serve(async (req) => {
     }
 
     if (method === 'PUT') {
-      // Update submission
-      const body = await req.json()
-      const { id, ...updates } = body
+      console.log('Processing PUT request for submission update')
       
-      console.log('Updating submission:', id, 'with updates:', updates)
+      let body
+      try {
+        body = await req.json()
+        console.log('Request body parsed:', JSON.stringify(body, null, 2))
+      } catch (parseError) {
+        console.error('Error parsing request body:', parseError)
+        return new Response(
+          JSON.stringify({ error: 'Invalid JSON in request body' }),
+          { 
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+            status: 400 
+          }
+        )
+      }
+      
+      const { id, ...updates } = body
       
       if (!id) {
         console.error('No submission ID provided for update')
@@ -63,6 +81,8 @@ serve(async (req) => {
           }
         )
       }
+
+      console.log('Updating submission:', id, 'with updates:', updates)
 
       // Add updated_at timestamp
       const updateData = {
@@ -78,7 +98,7 @@ serve(async (req) => {
         .single()
 
       if (error) {
-        console.error('Error updating submission:', error)
+        console.error('Supabase error updating submission:', error)
         return new Response(
           JSON.stringify({ error: `Failed to update submission: ${error.message}` }),
           { 
@@ -99,11 +119,23 @@ serve(async (req) => {
     }
 
     if (method === 'DELETE') {
-      // Delete submission
-      const body = await req.json()
-      const { id } = body
+      console.log('Processing DELETE request')
       
-      console.log('Deleting submission:', id)
+      let body
+      try {
+        body = await req.json()
+      } catch (parseError) {
+        console.error('Error parsing request body for DELETE:', parseError)
+        return new Response(
+          JSON.stringify({ error: 'Invalid JSON in request body' }),
+          { 
+            headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+            status: 400 
+          }
+        )
+      }
+      
+      const { id } = body
       
       if (!id) {
         console.error('No submission ID provided for deletion')
@@ -115,6 +147,8 @@ serve(async (req) => {
           }
         )
       }
+      
+      console.log('Deleting submission:', id)
       
       const { error } = await supabaseClient
         .from('submissions')
@@ -142,6 +176,7 @@ serve(async (req) => {
       )
     }
 
+    console.log('Method not allowed:', method)
     return new Response(
       JSON.stringify({ error: 'Method not allowed' }),
       { 
@@ -151,7 +186,7 @@ serve(async (req) => {
     )
 
   } catch (error) {
-    console.error('Admin submissions error:', error)
+    console.error('Unexpected error in admin-submissions function:', error)
     return new Response(
       JSON.stringify({ error: `Internal server error: ${error.message}` }),
       { 

@@ -1,12 +1,13 @@
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Trophy, Calendar, Gift, Upload } from 'lucide-react';
+import { Trophy, Calendar, Gift, Upload, AlertTriangle } from 'lucide-react';
 import type { SubmissionData, ClusterType } from '@/pages/Index';
+import { supabase } from '@/integrations/supabase/client';
 
 interface WelcomeStepProps {
   onNext: () => void;
@@ -23,9 +24,56 @@ const clusters: ClusterType[] = [
 ];
 
 const WelcomeStep: React.FC<WelcomeStepProps> = ({ onNext, data, updateData }) => {
+  // State to track whether email already exists (has submission)
+  const [emailChecked, setEmailChecked] = useState<string>('');
+  const [alreadySubmitted, setAlreadySubmitted] = useState(false);
+  const [checkingEmail, setCheckingEmail] = useState(false);
+
+  // Debounce email checking for request efficiency
+  useEffect(() => {
+    setAlreadySubmitted(false);
+    if (!data.email || !validateEmail(data.email)) {
+      setEmailChecked('');
+      return;
+    }
+
+    setCheckingEmail(true);
+    const handle = setTimeout(async () => {
+      try {
+        // Query the submissions table for this email
+        const { data: submissions, error } = await supabase
+          .from('submissions')
+          .select('id')
+          .eq('email', data.email);
+
+        setEmailChecked(data.email);
+        if (submissions && submissions.length > 0) {
+          setAlreadySubmitted(true);
+        } else {
+          setAlreadySubmitted(false);
+        }
+      } catch {
+        setAlreadySubmitted(false);
+      } finally {
+        setCheckingEmail(false);
+      }
+    }, 400);
+
+    return () => clearTimeout(handle);
+  }, [data.email]);
+
+  function validateEmail(email: string) {
+    return /\S+@\S+\.\S+/.test(email);
+  }
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (data.fullName.trim() && data.email.trim() && data.cluster) {
+    if (
+      data.fullName.trim() &&
+      data.email.trim() &&
+      data.cluster &&
+      !alreadySubmitted
+    ) {
       onNext();
     }
   };
@@ -37,7 +85,12 @@ const WelcomeStep: React.FC<WelcomeStepProps> = ({ onNext, data, updateData }) =
     }
   };
 
-  const isFormValid = data.fullName.trim() && data.email.trim() && data.cluster;
+  const isFormValid =
+    !!data.fullName.trim() &&
+    !!data.email.trim() &&
+    !!data.cluster &&
+    !alreadySubmitted &&
+    validateEmail(data.email);
 
   return (
     <div className="max-w-2xl mx-auto">
@@ -69,6 +122,7 @@ const WelcomeStep: React.FC<WelcomeStepProps> = ({ onNext, data, updateData }) =
                   onChange={(e) => updateData({ fullName: e.target.value })}
                   required
                   className="text-lg h-12"
+                  autoComplete="name"
                 />
               </div>
               
@@ -84,7 +138,36 @@ const WelcomeStep: React.FC<WelcomeStepProps> = ({ onNext, data, updateData }) =
                   onChange={(e) => updateData({ email: e.target.value })}
                   required
                   className="text-lg h-12"
+                  autoComplete="email"
                 />
+                {checkingEmail && !!data.email && validateEmail(data.email) && (
+                  <p className="text-blue-600 text-sm mt-1">Checking for previous submission...</p>
+                )}
+                {!!data.email &&
+                  alreadySubmitted &&
+                  !checkingEmail &&
+                  emailChecked === data.email && (
+                  <div className="flex items-start bg-amber-100 border-l-4 border-amber-500 rounded-md p-3 mt-2 gap-2">
+                    <AlertTriangle className="h-5 w-5 text-amber-500 mt-0.5" />
+                    <div>
+                      <p className="text-amber-800 text-sm font-semibold mb-1">
+                        Submission already received!
+                      </p>
+                      <p className="text-amber-800 text-sm">
+                        Our records show a submission with this email. If you need to replace your video or update your profile, please contact{' '}
+                        <a
+                          href="mailto:dmd.cove@rmit.edu.au"
+                          className="underline text-blue-700 hover:text-blue-900"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                        >
+                          dmd.cove@rmit.edu.au
+                        </a>
+                        .
+                      </p>
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
 
@@ -178,3 +261,4 @@ const WelcomeStep: React.FC<WelcomeStepProps> = ({ onNext, data, updateData }) =
 };
 
 export default WelcomeStep;
+

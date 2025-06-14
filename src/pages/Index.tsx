@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+
+import React, { useState, useEffect, useRef } from 'react';
 import WelcomeStep from '@/components/onboarding/WelcomeStep';
 import RequirementsStep from '@/components/onboarding/RequirementsStep';
 import QuestionsStep from '@/components/onboarding/QuestionsStep';
@@ -39,6 +40,18 @@ const Index = () => {
       question3: '',
     },
   });
+
+  // Ref for auto-scroll to top
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  // Scroll to top of viewport on step change
+  useEffect(() => {
+    if (containerRef.current) {
+      containerRef.current.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    } else {
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+  }, [currentStep]);
 
   // Initialize storage buckets on component mount
   useEffect(() => {
@@ -86,7 +99,7 @@ const Index = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-red-50">
+    <div ref={containerRef} className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-red-50">
       <div className="container mx-auto px-4 py-8 max-w-4xl">
         {currentStep !== 'confirmation' && (
           <ProgressBar currentStep={currentStepIndex} totalSteps={steps.length - 1} />
@@ -118,3 +131,4 @@ const Index = () => {
 };
 
 export default Index;
+

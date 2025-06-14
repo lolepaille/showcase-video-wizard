@@ -1,15 +1,18 @@
+
 import React, { useState, useEffect, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Alert, AlertDescription } from '@/components/ui/alert';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Eye, LogOut, Plus, Users } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useNavigate } from 'react-router-dom';
 import { useToast } from '@/hooks/use-toast';
 import FileUploadField from '@/components/onboarding/FileUploadField';
 import VideoTrimmer from '@/components/onboarding/VideoTrimmer';
-import VideoConverter from '@/components/onboarding/video-trimmer/VideoConverter';
 import SubmissionsFilters, { type FiltersState, type SortField } from '@/components/admin/SubmissionsFilters';
 import SubmissionsTable from '@/components/admin/SubmissionsTable';
 import type { ClusterType } from '@/pages/Index';
@@ -40,8 +43,6 @@ const AdminDashboard = () => {
   const [loading, setLoading] = useState(true);
   const [editingSubmission, setEditingSubmission] = useState<Submission | null>(null);
   const [trimmingVideo, setTrimmingVideo] = useState<Submission | null>(null);
-  const [convertingVideo, setConvertingVideo] = useState<Submission | null>(null);
-  const [convertedVideoBlob, setConvertedVideoBlob] = useState<Blob | null>(null);
   const [showAddForm, setShowAddForm] = useState(false);
   const [error, setError] = useState('');
   
@@ -338,21 +339,49 @@ const AdminDashboard = () => {
       });
       
       setTrimmingVideo(null);
-      setConvertedVideoBlob(null);
     } catch (err) {
       console.error('Error handling trimmed video:', err);
       setError('Failed to save trimmed video');
     }
   };
 
-  const handleConversionComplete = (convertedBlob: Blob) => {
-    setConvertedVideoBlob(convertedBlob);
-    setConvertingVideo(null);
-    setTrimmingVideo(convertingVideo);
-  };
+  const handleTrimVideoClick = async (submission: Submission) => {
+    if (!submission.video_url) {
+      setError('No video URL found for this submission');
+      return;
+    }
 
-  const handleTrimVideoClick = (submission: Submission) => {
-    setConvertingVideo(submission);
+    try {
+      // Download the video and convert it to a blob for trimming
+      console.log('Downloading video for trimming:', submission.video_url);
+      const response = await fetch(submission.video_url);
+      
+      if (!response.ok) {
+        throw new Error(`Failed to fetch video: ${response.status} ${response.statusText}`);
+      }
+      
+      const videoBlob = await response.blob();
+      console.log('Video blob created for trimming, size:', videoBlob.size, 'type:', videoBlob.type);
+      
+      // Create a blob URL for the trimmer
+      const blobUrl = URL.createObjectURL(videoBlob);
+      
+      // Set up the trimming video with the blob
+      setTrimmingVideo({
+        ...submission,
+        video_url: blobUrl,
+        videoBlob: videoBlob
+      } as Submission & { videoBlob: Blob });
+      
+    } catch (err) {
+      console.error('Error preparing video for trimming:', err);
+      setError('Failed to load video for trimming. The video may be corrupted or inaccessible.');
+      toast({
+        title: "Error",
+        description: "Failed to load video for trimming",
+        variant: "destructive",
+      });
+    }
   };
 
   if (loading) {
@@ -366,33 +395,20 @@ const AdminDashboard = () => {
     );
   }
 
-  // Show video converter if a video is selected for conversion
-  if (convertingVideo && convertingVideo.video_url) {
-    return (
-      <div className="min-h-screen bg-gray-50 p-4 md:p-8">
-        <div className="max-w-4xl mx-auto">
-          <VideoConverter
-            videoUrl={convertingVideo.video_url}
-            onConversionComplete={handleConversionComplete}
-            onCancel={() => setConvertingVideo(null)}
-            title={`Convert Video: ${convertingVideo.full_name}`}
-          />
-        </div>
-      </div>
-    );
-  }
-
   // Show video trimmer if a video is selected for trimming
-  if (trimmingVideo && convertedVideoBlob) {
+  if (trimmingVideo && (trimmingVideo as any).videoBlob) {
     return (
       <div className="min-h-screen bg-gray-50 p-4 md:p-8">
         <div className="max-w-4xl mx-auto">
           <VideoTrimmer
-            videoBlob={convertedVideoBlob}
+            videoBlob={(trimmingVideo as any).videoBlob}
             onTrimComplete={handleTrimComplete}
             onCancel={() => {
               setTrimmingVideo(null);
-              setConvertedVideoBlob(null);
+              // Clean up blob URL
+              if (trimmingVideo.video_url?.startsWith('blob:')) {
+                URL.revokeObjectURL(trimmingVideo.video_url);
+              }
             }}
             title={`Trim Video: ${trimmingVideo.full_name}`}
           />
@@ -685,7 +701,7 @@ const EditSubmissionForm: React.FC<EditSubmissionFormProps> = ({ submission, onS
           Save Changes
         </Button>
       </div>
-    </form>
+    </div>
   );
 };
 

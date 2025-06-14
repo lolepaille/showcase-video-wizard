@@ -90,14 +90,14 @@ const Index = () => {
           {renderCurrentStep()}
         </div>
         
-        {/* Discreet admin link */}
-        <div className="fixed bottom-4 left-4 opacity-10 hover:opacity-100 transition-opacity">
+        {/* Visible admin link */}
+        <div className="fixed bottom-4 left-4">
           <a 
             href="/admin" 
-            className="text-xs text-gray-400 hover:text-gray-600"
+            className="text-sm text-blue-600 hover:text-blue-800 bg-white px-3 py-2 rounded-lg shadow-md hover:shadow-lg transition-all duration-200 border border-blue-200"
             title="Admin Access"
           >
-            •
+            Admin Portal
           </a>
         </div>
       </div>

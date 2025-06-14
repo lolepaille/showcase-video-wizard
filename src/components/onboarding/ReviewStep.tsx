@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -44,30 +43,29 @@ const ReviewStep: React.FC<ReviewStepProps> = ({ onNext, onPrev, data, updateDat
     return hasRequiredFields && hasAllChecks;
   };
 
-  const uploadFile = async (file: File, bucket: string, path: string): Promise<string | null> => {
+  const uploadViaFunction = async (file: File, endpoint: string): Promise<string | null> => {
     try {
-      console.log(`Uploading file to bucket: ${bucket}, path: ${path}`);
-      
-      const { data: uploadData, error } = await supabase.storage
-        .from(bucket)
-        .upload(path, file, {
-          cacheControl: '3600',
-          upsert: true
-        });
+      const formData = new FormData();
+      formData.append("file", file);
 
-      if (error) {
-        console.error(`Upload error for ${bucket}:`, error);
-        throw error;
+      console.log(`Uploading file via API: ${endpoint}`);
+
+      const res = await fetch(
+        `https://mzprzuwbpknbzgtbmzix.supabase.co/functions/v1/${endpoint}`,
+        {
+          method: "POST",
+          body: formData,
+        }
+      );
+
+      const result = await res.json();
+      if (!res.ok || !result.url) {
+        throw new Error(result.error || "Failed to upload file");
       }
-
-      const { data: urlData } = supabase.storage
-        .from(bucket)
-        .getPublicUrl(path);
-
-      console.log(`Upload successful, public URL: ${urlData.publicUrl}`);
-      return urlData.publicUrl;
+      console.log(`Upload successful. Public URL: ${result.url}`);
+      return result.url;
     } catch (error) {
-      console.error(`Failed to upload to ${bucket}:`, error);
+      console.error(`Failed to upload via API:`, error);
       throw error;
     }
   };
@@ -95,19 +93,20 @@ const ReviewStep: React.FC<ReviewStepProps> = ({ onNext, onPrev, data, updateDat
       let profilePictureUrl = null;
       let videoUrl = null;
 
-      // Upload profile picture if provided
+      // Upload profile picture with backend API if provided
       if (data.profilePicture) {
         console.log('Uploading profile picture...');
-        const profilePath = `${Date.now()}-${data.profilePicture.name}`;
-        profilePictureUrl = await uploadFile(data.profilePicture, 'profile-pictures', profilePath);
+        profilePictureUrl = await uploadViaFunction(
+          data.profilePicture,
+          'upload-profile-picture'
+        );
       }
 
-      // Upload video if provided
+      // Upload video with backend API if provided
       if (data.videoBlob) {
         console.log('Uploading video blob...');
-        const videoPath = `${Date.now()}-video.webm`;
         const videoFile = new File([data.videoBlob], 'video.webm', { type: 'video/webm' });
-        videoUrl = await uploadFile(videoFile, 'videos', videoPath);
+        videoUrl = await uploadViaFunction(videoFile, 'upload-video');
       }
 
       // Prepare submission data
@@ -146,7 +145,7 @@ const ReviewStep: React.FC<ReviewStepProps> = ({ onNext, onPrev, data, updateDat
       onNext();
     } catch (error) {
       console.error('Submission error:', error);
-      
+
       let errorMessage = "Failed to submit. Please try again.";
       if (error instanceof Error) {
         errorMessage = error.message;

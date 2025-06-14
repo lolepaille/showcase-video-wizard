@@ -1,4 +1,3 @@
-
 import React, { useState, useRef, useCallback } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -19,6 +18,8 @@ interface RecordingStepProps {
 type RecordingMode = 'camera' | 'screen' | 'both';
 
 const RecordingStep: React.FC<RecordingStepProps> = ({ onNext, onPrev, data, updateData }) => {
+  console.log('[RecordingStep] Component initialized with data:', data);
+  
   const [isRecording, setIsRecording] = useState(false);
   const [recordedBlob, setRecordedBlob] = useState<Blob | null>(data.videoBlob || null);
   const [recordingTime, setRecordingTime] = useState(0);
@@ -28,6 +29,8 @@ const RecordingStep: React.FC<RecordingStepProps> = ({ onNext, onPrev, data, upd
   const [error, setError] = useState<string>('');
   const [showRotateOverlay, setShowRotateOverlay] = useState(false);
   const isMobile = useIsMobile();
+  
+  console.log('[RecordingStep] State initialized - isMobile:', isMobile, 'recordingMode:', recordingMode);
   
   const videoRef = useRef<HTMLVideoElement>(null);
   const pipVideoRef = useRef<HTMLVideoElement>(null);
@@ -39,11 +42,13 @@ const RecordingStep: React.FC<RecordingStepProps> = ({ onNext, onPrev, data, upd
 
   const startRecording = useCallback(async () => {
     try {
+      console.log('[RecordingStep] Starting recording with mode:', recordingMode);
       setError('');
       setShowRotateOverlay(false);
       let finalStream: MediaStream | null = null;
 
       if (recordingMode === 'camera') {
+        console.log('[RecordingStep] Requesting camera access...');
         // Camera only recording
         const mediaStream = await navigator.mediaDevices.getUserMedia({
           video: {
@@ -58,9 +63,12 @@ const RecordingStep: React.FC<RecordingStepProps> = ({ onNext, onPrev, data, upd
         });
 
         const videoTrack = mediaStream.getVideoTracks()[0];
+        console.log('[RecordingStep] Camera stream obtained, checking orientation...');
         if (isMobile && videoTrack) {
           const settings = videoTrack.getSettings();
+          console.log('[RecordingStep] Video settings:', settings);
           if (settings.width && settings.height && settings.height > settings.width) {
+            console.log('[RecordingStep] Portrait mode detected, showing rotate overlay');
             setShowRotateOverlay(true);
             mediaStream.getTracks().forEach(track => track.stop());
             return;
@@ -74,6 +82,7 @@ const RecordingStep: React.FC<RecordingStepProps> = ({ onNext, onPrev, data, upd
           videoRef.current.srcObject = mediaStream;
         }
       } else if (recordingMode === 'screen') {
+        console.log('[RecordingStep] Requesting screen capture...');
         // Screen only recording
         const displayStream = await navigator.mediaDevices.getDisplayMedia({
           video: {
@@ -90,6 +99,7 @@ const RecordingStep: React.FC<RecordingStepProps> = ({ onNext, onPrev, data, upd
           videoRef.current.srcObject = displayStream;
         }
       } else if (recordingMode === 'both') {
+        console.log('[RecordingStep] Requesting both camera and screen...');
         // Picture-in-picture recording (screen + camera)
         const [displayStream, cameraStreamLocal] = await Promise.all([
           navigator.mediaDevices.getDisplayMedia({
@@ -115,7 +125,9 @@ const RecordingStep: React.FC<RecordingStepProps> = ({ onNext, onPrev, data, upd
         const cameraVideoTrack = cameraStreamLocal.getVideoTracks()[0];
         if (isMobile && cameraVideoTrack) {
           const settings = cameraVideoTrack.getSettings();
+          console.log('[RecordingStep] Camera settings in both mode:', settings);
           if (settings.width && settings.height && settings.height > settings.width) {
+            console.log('[RecordingStep] Portrait mode detected in both mode, showing rotate overlay');
             setShowRotateOverlay(true);
             displayStream.getTracks().forEach(track => track.stop());
             cameraStreamLocal.getTracks().forEach(track => track.stop());
@@ -186,8 +198,12 @@ const RecordingStep: React.FC<RecordingStepProps> = ({ onNext, onPrev, data, upd
         audioTracks.forEach(track => finalStream!.addTrack(track));
       }
 
-      if (!finalStream) return;
+      if (!finalStream) {
+        console.log('[RecordingStep] No final stream available');
+        return;
+      }
 
+      console.log('[RecordingStep] Setting up MediaRecorder...');
       const mimeType = MediaRecorder.isTypeSupported('video/webm;codecs=vp9') 
         ? 'video/webm;codecs=vp9' 
         : 'video/mp4';
@@ -233,8 +249,8 @@ const RecordingStep: React.FC<RecordingStepProps> = ({ onNext, onPrev, data, upd
       }, 1000);
 
     } catch (err) {
+      console.error('[RecordingStep] Error starting recording:', err);
       setError('Could not access camera and/or screen. Please check your permissions.');
-      console.error('Error accessing media devices:', err);
     }
   }, [updateData, recordingMode, isMobile]);
 
@@ -284,6 +300,8 @@ const RecordingStep: React.FC<RecordingStepProps> = ({ onNext, onPrev, data, upd
     const secs = seconds % 60;
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
+
+  console.log('[RecordingStep] Rendering component - showRotateOverlay:', showRotateOverlay, 'error:', error);
 
   return (
     <div className="max-w-4xl mx-auto">

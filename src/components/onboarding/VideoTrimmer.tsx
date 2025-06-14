@@ -148,20 +148,18 @@ const VideoTrimmer: React.FC<VideoTrimmerProps> = ({ videoBlob, onTrimComplete, 
       // Create a stream from canvas
       const stream = canvas.captureStream(30);
       
-      // Add audio track if available
-      if (videoBlob.type.includes('audio') || video.mozHasAudio || video.webkitAudioDecodedByteCount > 0) {
-        try {
-          const audioContext = new AudioContext();
-          const source = audioContext.createMediaElementSource(video);
-          const destination = audioContext.createMediaStreamDestination();
-          source.connect(destination);
-          
-          destination.stream.getAudioTracks().forEach(track => {
-            stream.addTrack(track);
-          });
-        } catch (audioError) {
-          console.warn('Could not add audio track:', audioError);
-        }
+      // Try to add audio track if the original video has audio
+      try {
+        const audioContext = new AudioContext();
+        const source = audioContext.createMediaElementSource(video);
+        const destination = audioContext.createMediaStreamDestination();
+        source.connect(destination);
+        
+        destination.stream.getAudioTracks().forEach(track => {
+          stream.addTrack(track);
+        });
+      } catch (audioError) {
+        console.warn('Could not add audio track:', audioError);
       }
       
       const mediaRecorder = new MediaRecorder(stream, {

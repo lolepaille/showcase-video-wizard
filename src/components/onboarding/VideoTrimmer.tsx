@@ -1,9 +1,13 @@
 
 import React, { useState, useRef, useEffect } from 'react';
-import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Slider } from '@/components/ui/slider';
-import { Play, Pause, Scissors, RotateCcw, X } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Scissors, X } from 'lucide-react';
+import VideoPlayer from './video-trimmer/VideoPlayer';
+import TrimControls from './video-trimmer/TrimControls';
+import TrimProgress from './video-trimmer/TrimProgress';
+import VideoTrimmerActions from './video-trimmer/VideoTrimmerActions';
+import ErrorDisplay from './video-trimmer/ErrorDisplay';
 
 interface VideoTrimmerProps {
   videoBlob: Blob;
@@ -34,8 +38,6 @@ const VideoTrimmer: React.FC<VideoTrimmerProps> = ({ videoBlob, onTrimComplete, 
       
       // Create new URL for the blob
       videoUrl.current = URL.createObjectURL(videoBlob);
-      const video = videoRef.current;
-      video.src = videoUrl.current;
       
       // Reset states
       setIsLoaded(false);
@@ -240,13 +242,6 @@ const VideoTrimmer: React.FC<VideoTrimmerProps> = ({ videoBlob, onTrimComplete, 
     trimVideo();
   };
 
-  const formatTime = (time: number) => {
-    if (!isFinite(time) || time < 0) return '0:00';
-    const minutes = Math.floor(time / 60);
-    const seconds = Math.floor(time % 60);
-    return `${minutes}:${seconds.toString().padStart(2, '0')}`;
-  };
-
   const trimmedDuration = endTime - startTime;
 
   return (
@@ -271,168 +266,48 @@ const VideoTrimmer: React.FC<VideoTrimmerProps> = ({ videoBlob, onTrimComplete, 
       </CardHeader>
       
       <CardContent className="space-y-6">
-        {/* Error Display */}
-        {error && (
-          <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-            <div className="flex items-center justify-between">
-              <p className="text-red-800">{error}</p>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={retryTrimming}
-                className="text-red-600 border-red-300"
-              >
-                Retry
-              </Button>
-            </div>
-          </div>
-        )}
+        <ErrorDisplay error={error} onRetry={retryTrimming} />
 
-        {/* Video Preview */}
-        <div className="relative bg-black rounded-lg overflow-hidden aspect-video max-w-2xl mx-auto">
-          <video
-            ref={videoRef}
-            className="w-full h-full object-contain"
+        <div className="relative">
+          <VideoPlayer
+            videoRef={videoRef}
+            isPlaying={isPlaying}
+            isLoaded={isLoaded}
+            currentTime={currentTime}
+            duration={duration}
+            onTogglePlayPause={togglePlayPause}
             onTimeUpdate={handleTimeUpdate}
             onLoadedMetadata={handleLoadedMetadata}
             onPlay={handlePlay}
             onPause={handlePause}
-            muted
-            playsInline
+            videoUrl={videoUrl.current}
           />
           
-          {!isLoaded && (
-            <div className="absolute inset-0 flex items-center justify-center bg-gray-900">
-              <div className="text-center text-white">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-white mx-auto mb-2"></div>
-                <p>Loading video...</p>
-              </div>
-            </div>
-          )}
-
-          {/* Trimming Progress Overlay */}
-          {isTrimming && (
-            <div className="absolute inset-0 bg-black/50 flex items-center justify-center">
-              <div className="text-center text-white">
-                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white mx-auto mb-4"></div>
-                <p className="text-lg font-medium">Trimming Video...</p>
-                <p className="text-sm">{Math.round(trimProgress)}% Complete</p>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={cancelTrimming}
-                  className="mt-4 text-white border-white hover:bg-white hover:text-black"
-                >
-                  Cancel
-                </Button>
-              </div>
-            </div>
-          )}
+          <TrimProgress
+            isVisible={isTrimming}
+            progress={trimProgress}
+            onCancel={cancelTrimming}
+          />
         </div>
 
         {isLoaded && !isTrimming && (
           <div className="space-y-4">
-            {/* Playback Controls */}
-            <div className="flex items-center justify-center gap-4">
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={togglePlayPause}
-                className="flex items-center gap-2"
-              >
-                {isPlaying ? (
-                  <Pause className="h-4 w-4" />
-                ) : (
-                  <Play className="h-4 w-4" />
-                )}
-                {isPlaying ? 'Pause' : 'Play Preview'}
-              </Button>
-              
-              <span className="text-sm text-muted-foreground">
-                {formatTime(currentTime)} / {formatTime(duration)}
-              </span>
-            </div>
+            <TrimControls
+              currentTime={currentTime}
+              duration={duration}
+              startTime={startTime}
+              endTime={endTime}
+              onCurrentTimeChange={handleCurrentTimeChange}
+              onStartTimeChange={handleStartTimeChange}
+              onEndTimeChange={handleEndTimeChange}
+            />
 
-            {/* Timeline Scrubber */}
-            <div className="space-y-3">
-              <div className="text-sm font-medium">Current Position</div>
-              <Slider
-                value={[currentTime]}
-                max={duration}
-                step={0.1}
-                onValueChange={handleCurrentTimeChange}
-                className="w-full"
-              />
-            </div>
-
-            {/* Trim Controls */}
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <div className="text-sm font-medium flex items-center justify-between">
-                  <span>Start Time</span>
-                  <span className="text-muted-foreground">{formatTime(startTime)}</span>
-                </div>
-                <Slider
-                  value={[startTime]}
-                  max={duration}
-                  step={0.1}
-                  onValueChange={handleStartTimeChange}
-                  className="w-full"
-                />
-              </div>
-              
-              <div className="space-y-2">
-                <div className="text-sm font-medium flex items-center justify-between">
-                  <span>End Time</span>
-                  <span className="text-muted-foreground">{formatTime(endTime)}</span>
-                </div>
-                <Slider
-                  value={[endTime]}
-                  max={duration}
-                  step={0.1}
-                  onValueChange={handleEndTimeChange}
-                  className="w-full"
-                />
-              </div>
-            </div>
-
-            {/* Trim Info */}
-            <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-              <div className="text-center">
-                <h4 className="font-medium text-blue-800">Trimmed Duration</h4>
-                <p className="text-2xl font-bold text-blue-600">{formatTime(trimmedDuration)}</p>
-                <p className="text-sm text-blue-700 mt-1">
-                  From {formatTime(startTime)} to {formatTime(endTime)}
-                </p>
-              </div>
-            </div>
-
-            {/* Action Buttons */}
-            <div className="flex justify-center gap-4 pt-4">
-              <Button
-                variant="outline"
-                onClick={onCancel}
-                className="px-6"
-              >
-                <RotateCcw className="h-4 w-4 mr-2" />
-                Cancel
-              </Button>
-              
-              <Button
-                onClick={trimVideo}
-                disabled={trimmedDuration < 0.5}
-                className="px-6 bg-green-600 hover:bg-green-700"
-              >
-                <Scissors className="h-4 w-4 mr-2" />
-                Apply Trim
-              </Button>
-            </div>
-
-            {trimmedDuration < 0.5 && (
-              <p className="text-center text-sm text-red-600">
-                Minimum trim duration is 0.5 seconds
-              </p>
-            )}
+            <VideoTrimmerActions
+              trimmedDuration={trimmedDuration}
+              isTrimming={isTrimming}
+              onCancel={onCancel}
+              onTrimVideo={trimVideo}
+            />
           </div>
         )}
       </CardContent>

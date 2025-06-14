@@ -13,6 +13,7 @@ import { useNavigate } from 'react-router-dom';
 import { useToast } from '@/hooks/use-toast';
 import FileUploadField from '@/components/onboarding/FileUploadField';
 import VideoTrimmer from '@/components/onboarding/VideoTrimmer';
+import VideoConverter from '@/components/onboarding/video-trimmer/VideoConverter';
 import type { ClusterType } from '@/pages/Index';
 
 interface Submission {
@@ -41,6 +42,8 @@ const AdminDashboard = () => {
   const [loading, setLoading] = useState(true);
   const [editingSubmission, setEditingSubmission] = useState<Submission | null>(null);
   const [trimmingVideo, setTrimmingVideo] = useState<Submission | null>(null);
+  const [convertingVideo, setConvertingVideo] = useState<Submission | null>(null);
+  const [convertedVideoBlob, setConvertedVideoBlob] = useState<Blob | null>(null);
   const [showAddForm, setShowAddForm] = useState(false);
   const [error, setError] = useState('');
   const navigate = useNavigate();
@@ -272,10 +275,21 @@ const AdminDashboard = () => {
       });
       
       setTrimmingVideo(null);
+      setConvertedVideoBlob(null);
     } catch (err) {
       console.error('Error handling trimmed video:', err);
       setError('Failed to save trimmed video');
     }
+  };
+
+  const handleConversionComplete = (convertedBlob: Blob) => {
+    setConvertedVideoBlob(convertedBlob);
+    setConvertingVideo(null);
+    setTrimmingVideo(convertingVideo);
+  };
+
+  const handleTrimVideoClick = (submission: Submission) => {
+    setConvertingVideo(submission);
   };
 
   if (loading) {
@@ -289,15 +303,34 @@ const AdminDashboard = () => {
     );
   }
 
+  // Show video converter if a video is selected for conversion
+  if (convertingVideo && convertingVideo.video_url) {
+    return (
+      <div className="min-h-screen bg-gray-50 p-4 md:p-8">
+        <div className="max-w-4xl mx-auto">
+          <VideoConverter
+            videoUrl={convertingVideo.video_url}
+            onConversionComplete={handleConversionComplete}
+            onCancel={() => setConvertingVideo(null)}
+            title={`Convert Video: ${convertingVideo.full_name}`}
+          />
+        </div>
+      </div>
+    );
+  }
+
   // Show video trimmer if a video is selected for trimming
-  if (trimmingVideo && trimmingVideo.video_url) {
+  if (trimmingVideo && convertedVideoBlob) {
     return (
       <div className="min-h-screen bg-gray-50 p-4 md:p-8">
         <div className="max-w-4xl mx-auto">
           <VideoTrimmer
-            videoUrl={trimmingVideo.video_url}
+            videoBlob={convertedVideoBlob}
             onTrimComplete={handleTrimComplete}
-            onCancel={() => setTrimmingVideo(null)}
+            onCancel={() => {
+              setTrimmingVideo(null);
+              setConvertedVideoBlob(null);
+            }}
             title={`Trim Video: ${trimmingVideo.full_name}`}
           />
         </div>
@@ -399,7 +432,7 @@ const AdminDashboard = () => {
                             <Button
                               size="sm"
                               variant="outline"
-                              onClick={() => setTrimmingVideo(submission)}
+                              onClick={() => handleTrimVideoClick(submission)}
                               title="Trim video"
                             >
                               <Scissors className="h-4 w-4" />

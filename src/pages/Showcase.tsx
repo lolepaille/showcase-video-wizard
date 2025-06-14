@@ -32,7 +32,7 @@ const Showcase = () => {
   useEffect(() => {
     fetchPublishedSubmissions();
     
-    // Set up real-time subscription for instant updates
+    // Set up real-time subscription - listen to ALL submission changes, not just published ones
     const channel = supabase
       .channel('showcase-updates')
       .on(
@@ -40,17 +40,20 @@ const Showcase = () => {
         {
           event: '*', // Listen to all events (INSERT, UPDATE, DELETE)
           schema: 'public',
-          table: 'submissions',
-          filter: 'is_published=eq.true'
+          table: 'submissions'
+          // Remove the filter here so we get all updates
         },
         (payload) => {
           console.log('Real-time update received:', payload);
           handleRealtimeUpdate(payload);
         }
       )
-      .subscribe();
+      .subscribe((status) => {
+        console.log('Real-time subscription status:', status);
+      });
 
     return () => {
+      console.log('Cleaning up real-time subscription');
       supabase.removeChannel(channel);
     };
   }, []);
@@ -67,40 +70,49 @@ const Showcase = () => {
 
   const handleRealtimeUpdate = (payload: any) => {
     const { eventType, new: newRecord, old: oldRecord } = payload;
+    console.log('Processing real-time update:', { eventType, newRecord, oldRecord });
     
     setSubmissions(prevSubmissions => {
       switch (eventType) {
         case 'INSERT':
-          if (newRecord.is_published) {
+          if (newRecord?.is_published) {
             console.log('Adding new published submission:', newRecord.id);
-            return [...prevSubmissions, newRecord];
+            // Check if submission already exists to avoid duplicates
+            const exists = prevSubmissions.some(s => s.id === newRecord.id);
+            if (!exists) {
+              return [...prevSubmissions, newRecord];
+            }
           }
           return prevSubmissions;
           
         case 'UPDATE':
-          if (newRecord.is_published) {
-            console.log('Updating submission:', newRecord.id);
+          console.log('Processing UPDATE event for submission:', newRecord?.id);
+          if (newRecord?.is_published) {
+            // Add or update published submission
             const existingIndex = prevSubmissions.findIndex(s => s.id === newRecord.id);
             if (existingIndex >= 0) {
               // Update existing submission
+              console.log('Updating existing submission with new data:', newRecord);
               const updated = [...prevSubmissions];
               updated[existingIndex] = newRecord;
               return updated;
             } else {
               // Add newly published submission
+              console.log('Adding newly published submission:', newRecord.id);
               return [...prevSubmissions, newRecord];
             }
           } else {
             // Remove unpublished submission
-            console.log('Removing unpublished submission:', newRecord.id);
-            return prevSubmissions.filter(s => s.id !== newRecord.id);
+            console.log('Removing unpublished submission:', newRecord?.id);
+            return prevSubmissions.filter(s => s.id !== newRecord?.id);
           }
           
         case 'DELETE':
-          console.log('Removing deleted submission:', oldRecord.id);
-          return prevSubmissions.filter(s => s.id !== oldRecord.id);
+          console.log('Removing deleted submission:', oldRecord?.id);
+          return prevSubmissions.filter(s => s.id !== oldRecord?.id);
           
         default:
+          console.log('Unknown event type:', eventType);
           return prevSubmissions;
       }
     });
@@ -327,17 +339,23 @@ const Showcase = () => {
                       const startTime = selectedSubmission.notes?.startTime;
                       const endTime = selectedSubmission.notes?.endTime;
                       
-                      console.log('Loading video with trim times:', { startTime, endTime });
+                      console.log('Video loaded with trim settings:', { 
+                        submissionId: selectedSubmission.id,
+                        startTime, 
+                        endTime,
+                        notes: selectedSubmission.notes 
+                      });
                       
-                      if (startTime !== undefined) {
+                      if (startTime !== undefined && startTime > 0) {
                         console.log('Setting video start time to:', startTime);
                         video.currentTime = startTime;
                       }
                       
-                      // Set up time update listener to handle end time
-                      if (endTime !== undefined) {
+                      // Handle end time during playback
+                      if (endTime !== undefined && endTime > 0) {
                         const handleTimeUpdate = () => {
                           if (video.currentTime >= endTime) {
+                            console.log('Video reached end time, stopping playback');
                             video.pause();
                             video.removeEventListener('timeupdate', handleTimeUpdate);
                             handleVideoEnd();
@@ -345,9 +363,12 @@ const Showcase = () => {
                         };
                         
                         video.addEventListener('timeupdate', handleTimeUpdate);
+                        
+                        // Cleanup function
+                        return () => {
+                          video.removeEventListener('timeupdate', handleTimeUpdate);
+                        };
                       }
-                      
-                      console.log('Video loaded for showcase playback with trim times:', { startTime, endTime });
                     }}
                   />
                 ) : (

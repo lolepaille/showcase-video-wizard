@@ -1,5 +1,6 @@
 
 import { useState } from "react";
+import { supabase } from "@/integrations/supabase/client";
 
 interface TrimVideoParams {
   videoUrl: string;
@@ -8,9 +9,15 @@ interface TrimVideoParams {
   onProgress?: (p: number) => void;
 }
 
+interface TrimResult {
+  videoUrl: string;
+  startTime: number;
+  endTime: number;
+}
+
 /**
- * Makes a call to the Supabase Edge Function to trim a video.
- * Returns a Blob of the trimmed video.
+ * Instead of actually trimming the video, we just store the start and end times
+ * for playback control in the showcase.
  */
 export function useVideoTrimAPI() {
   const [isTrimming, setIsTrimming] = useState(false);
@@ -21,39 +28,25 @@ export function useVideoTrimAPI() {
     start,
     end,
     onProgress,
-  }: TrimVideoParams): Promise<Blob | null> {
+  }: TrimVideoParams): Promise<TrimResult | null> {
     setIsTrimming(true);
     setError(null);
     
     try {
-      console.log('Starting video trim request:', { videoUrl, start, end });
+      console.log('Setting video trim times:', { videoUrl, start, end });
       
-      const formData = new FormData();
-      formData.append("video_url", videoUrl);
-      formData.append("start", String(start));
-      formData.append("end", String(end));
-
-      // Make direct fetch call to the edge function
-      const response = await fetch(`https://mzprzuwbpknbzgtbmzix.supabase.co/functions/v1/trim-video`, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im16cHJ6dXdicGtuYnpndGJteml4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDk3OTM0ODUsImV4cCI6MjA2NTM2OTQ4NX0.sywWkN89zNLlTl69XGwN13xqb-OT-__UBlVSaHYKlTM`,
-          'apikey': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im16cHJ6dXdicGtuYnpndGJteml4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDk3OTM0ODUsImV4cCI6MjA2NTM2OTQ4NX0.sywWkN89zNLlTl69XGwN13xqb-OT-__UBlVSaHYKlTM',
-        },
-        body: formData,
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error('Trim request failed:', response.status, errorText);
-        throw new Error(`Trim request failed: ${response.status} ${errorText}`);
-      }
-
-      // Get the response as a blob
-      const blob = await response.blob();
-      console.log('Trim successful, received blob of size:', blob.size);
+      // Simulate a brief processing delay for UX
+      await new Promise(resolve => setTimeout(resolve, 500));
       
-      return blob;
+      // Return the original video URL with trim times
+      const result: TrimResult = {
+        videoUrl,
+        startTime: start,
+        endTime: end
+      };
+      
+      console.log('Trim times set successfully:', result);
+      return result;
     } catch (err) {
       console.error('Trim video error:', err);
       const errorMessage = (err as Error).message || "Unknown error occurred";

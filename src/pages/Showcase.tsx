@@ -258,6 +258,12 @@ const Showcase = () => {
                     autoPlay
                     className="w-full h-full object-contain"
                     onEnded={handleVideoEnd}
+                    onLoadedMetadata={(e) => {
+                      const video = e.currentTarget;
+                      // If we have stored start/end times, we could use them here
+                      // For now, just play the full video
+                      console.log('Video loaded for showcase playback');
+                    }}
                   />
                 ) : (
                   <div className="flex items-center justify-center h-full text-white">

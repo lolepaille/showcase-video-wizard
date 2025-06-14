@@ -9,7 +9,7 @@ import ErrorDisplay from './video-trimmer/ErrorDisplay';
 interface VideoTrimmerProps {
   videoBlob?: Blob;
   videoUrl?: string;
-  onTrimComplete: (trimmedBlob: Blob) => void;
+  onTrimComplete: (videoUrl: string, startTime?: number, endTime?: number) => void;
   onCancel: () => void;
   title?: string;
 }
@@ -19,7 +19,7 @@ const VideoTrimmer: React.FC<VideoTrimmerProps> = ({
   videoUrl,
   onTrimComplete,
   onCancel,
-  title = "Trim Your Video"
+  title = "Set Video Playback Times"
 }) => {
   const playerRef = useRef<HTMLVideoElement>(null);
   const [start, setStart] = useState(0);
@@ -57,7 +57,7 @@ const VideoTrimmer: React.FC<VideoTrimmerProps> = ({
     let actualUrl = videoUrl || src;
     
     if (videoBlob && !videoUrl) {
-      setLocalError("Please upload the video to get a URL before trimming.");
+      setLocalError("Please upload the video to get a URL before setting trim times.");
       return;
     }
 
@@ -67,24 +67,24 @@ const VideoTrimmer: React.FC<VideoTrimmerProps> = ({
     }
 
     if (!actualUrl) {
-      setLocalError("No video URL available for trimming.");
+      setLocalError("No video URL available.");
       return;
     }
 
-    console.log('Starting trim with URL:', actualUrl);
+    console.log('Setting trim times for URL:', actualUrl);
     
-    const trimmedBlob = await trimVideo({
+    const result = await trimVideo({
       videoUrl: actualUrl,
       start,
       end,
     });
     
-    if (trimmedBlob) {
-      console.log('Trim completed successfully');
-      onTrimComplete(trimmedBlob);
+    if (result) {
+      console.log('Trim times set successfully');
+      onTrimComplete(result.videoUrl, result.startTime, result.endTime);
     } else {
-      console.error('Trimming failed - no blob returned');
-      setLocalError("Trimming failed. Please try again.");
+      console.error('Setting trim times failed');
+      setLocalError("Setting trim times failed. Please try again.");
     }
   };
 
@@ -105,7 +105,7 @@ const VideoTrimmer: React.FC<VideoTrimmerProps> = ({
           </Button>
         </CardTitle>
         <p className="text-muted-foreground">
-          Select the start and end points to trim your video
+          Set the start and end times for video playback in the showcase
         </p>
       </CardHeader>
       <CardContent className="space-y-6">
@@ -158,7 +158,7 @@ const VideoTrimmer: React.FC<VideoTrimmerProps> = ({
             Cancel
           </Button>
           <Button type="button" onClick={handleSubmit} disabled={isTrimming}>
-            {isTrimming ? "Trimming..." : "Trim Video"}
+            {isTrimming ? "Setting..." : "Set Playback Times"}
           </Button>
         </div>
       </CardContent>

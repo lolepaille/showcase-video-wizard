@@ -7,9 +7,15 @@ import { Play, Pause, Clock } from 'lucide-react';
 
 interface VideoPreviewProps {
   videoBlob?: Blob;
+  startTime?: number;
+  endTime?: number;
 }
 
-const VideoPreview: React.FC<VideoPreviewProps> = ({ videoBlob }) => {
+const VideoPreview: React.FC<VideoPreviewProps> = ({ 
+  videoBlob, 
+  startTime = 0, 
+  endTime 
+}) => {
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
@@ -35,7 +41,7 @@ const VideoPreview: React.FC<VideoPreviewProps> = ({ videoBlob }) => {
       
       // Reset states
       setIsLoaded(false);
-      setCurrentTime(0);
+      setCurrentTime(startTime);
       setDuration(0);
       setIsPlaying(false);
     }
@@ -45,13 +51,15 @@ const VideoPreview: React.FC<VideoPreviewProps> = ({ videoBlob }) => {
         URL.revokeObjectURL(videoUrl.current);
       }
     };
-  }, [videoBlob]);
+  }, [videoBlob, startTime]);
 
   const togglePlayPause = () => {
     if (videoRef.current && isLoaded) {
       if (isPlaying) {
         videoRef.current.pause();
       } else {
+        // Start from the specified start time
+        videoRef.current.currentTime = startTime;
         videoRef.current.play().catch(console.error);
       }
     }
@@ -62,6 +70,12 @@ const VideoPreview: React.FC<VideoPreviewProps> = ({ videoBlob }) => {
       const time = videoRef.current.currentTime;
       if (isFinite(time)) {
         setCurrentTime(time);
+        
+        // Auto-pause at end time if specified
+        if (endTime && time >= endTime) {
+          videoRef.current.pause();
+          setIsPlaying(false);
+        }
       }
     }
   };
@@ -73,6 +87,9 @@ const VideoPreview: React.FC<VideoPreviewProps> = ({ videoBlob }) => {
       if (isFinite(dur) && dur > 0) {
         setDuration(dur);
         setIsLoaded(true);
+        // Set initial time to start time
+        videoRef.current.currentTime = startTime;
+        setCurrentTime(startTime);
       }
     }
   };
@@ -84,7 +101,7 @@ const VideoPreview: React.FC<VideoPreviewProps> = ({ videoBlob }) => {
 
   const handleSliderChange = (value: number[]) => {
     if (videoRef.current && isLoaded && value[0] >= 0) {
-      const time = Math.min(value[0], duration);
+      const time = Math.max(startTime, Math.min(value[0], endTime || duration));
       videoRef.current.currentTime = time;
       setCurrentTime(time);
     }
@@ -106,6 +123,9 @@ const VideoPreview: React.FC<VideoPreviewProps> = ({ videoBlob }) => {
     const seconds = Math.floor(time % 60);
     return `${minutes}:${seconds.toString().padStart(2, '0')}`;
   };
+
+  const effectiveEndTime = endTime || duration;
+  const playbackDuration = effectiveEndTime - startTime;
 
   if (!videoBlob) {
     return (
@@ -131,7 +151,7 @@ const VideoPreview: React.FC<VideoPreviewProps> = ({ videoBlob }) => {
         {isLoaded && duration > 0 && (
           <span className="flex items-center gap-1 text-sm text-muted-foreground">
             <Clock className="h-4 w-4" />
-            {formatTime(duration)}
+            {endTime ? `${formatTime(startTime)} - ${formatTime(endTime)}` : formatTime(duration)}
           </span>
         )}
       </h3>
@@ -146,6 +166,7 @@ const VideoPreview: React.FC<VideoPreviewProps> = ({ videoBlob }) => {
             onCanPlay={handleCanPlay}
             onPlay={handlePlay}
             onPause={handlePause}
+            onEnded={() => setIsPlaying(false)}
             onError={(e) => console.error('Video error:', e)}
             preload="metadata"
             controls={false}
@@ -186,13 +207,14 @@ const VideoPreview: React.FC<VideoPreviewProps> = ({ videoBlob }) => {
                 </span>
                 <Slider
                   value={[currentTime]}
-                  max={duration}
+                  min={startTime}
+                  max={effectiveEndTime}
                   step={0.1}
                   onValueChange={handleSliderChange}
                   className="flex-1"
                 />
                 <span className="text-sm text-muted-foreground min-w-[40px]">
-                  {formatTime(duration)}
+                  {formatTime(effectiveEndTime)}
                 </span>
               </div>
             )}
@@ -200,7 +222,11 @@ const VideoPreview: React.FC<VideoPreviewProps> = ({ videoBlob }) => {
           
           {isLoaded && duration > 0 && (
             <div className="text-center text-sm text-muted-foreground">
-              Video Duration: {formatTime(duration)}
+              {endTime ? (
+                <>Playback Duration: {formatTime(playbackDuration)} (from {formatTime(startTime)} to {formatTime(endTime)})</>
+              ) : (
+                <>Video Duration: {formatTime(duration)}</>
+              )}
             </div>
           )}
         </div>

@@ -1,8 +1,9 @@
+
 import React from 'react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Edit, Trash2, Download, Scissors, ArrowUpDown } from 'lucide-react';
+import { Edit, Trash2, Download, Scissors, ArrowUpDown, Video } from 'lucide-react';
 import type { SortField, SortDirection } from './SubmissionsFilters';
 import type { ClusterType } from '@/pages/Index';
 
@@ -29,6 +30,7 @@ interface SubmissionsTableProps {
   onTogglePublish: (submission: Submission) => void;
   onTrimVideo: (submission: Submission) => void;
   onDownloadVideo: (videoUrl: string, fileName: string) => void;
+  onViewVideo: (submission: Submission) => void;
 }
 
 const SubmissionsTable: React.FC<SubmissionsTableProps> = ({
@@ -40,7 +42,8 @@ const SubmissionsTable: React.FC<SubmissionsTableProps> = ({
   onDelete,
   onTogglePublish,
   onTrimVideo,
-  onDownloadVideo
+  onDownloadVideo,
+  onViewVideo
 }) => {
   const getSortIcon = (field: SortField) => {
     if (sortField === field) {
@@ -128,6 +131,15 @@ const SubmissionsTable: React.FC<SubmissionsTableProps> = ({
                 <div className="flex items-center gap-1">
                   {submission.video_url && (
                     <>
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => onViewVideo(submission)}
+                        title="View video"
+                      >
+                        <Video className="h-4 w-4" />
+                      </Button>
+                      
                       <Button
                         size="sm"
                         variant="outline"

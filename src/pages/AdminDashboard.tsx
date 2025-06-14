@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -15,6 +14,7 @@ import FileUploadField from '@/components/onboarding/FileUploadField';
 import VideoTrimmer from '@/components/onboarding/VideoTrimmer';
 import SubmissionsFilters, { type FiltersState, type SortField } from '@/components/admin/SubmissionsFilters';
 import SubmissionsTable from '@/components/admin/SubmissionsTable';
+import VideoViewerDialog from '@/components/admin/VideoViewerDialog';
 import type { ClusterType } from '@/pages/Index';
 
 interface Submission {
@@ -43,6 +43,7 @@ const AdminDashboard = () => {
   const [loading, setLoading] = useState(true);
   const [editingSubmission, setEditingSubmission] = useState<Submission | null>(null);
   const [trimmingVideo, setTrimmingVideo] = useState<Submission | null>(null);
+  const [viewingVideo, setViewingVideo] = useState<Submission | null>(null);
   const [showAddForm, setShowAddForm] = useState(false);
   const [error, setError] = useState('');
   
@@ -384,6 +385,10 @@ const AdminDashboard = () => {
     }
   };
 
+  const handleViewVideo = (submission: Submission) => {
+    setViewingVideo(submission);
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -484,6 +489,7 @@ const AdminDashboard = () => {
                 onTogglePublish={handleTogglePublish}
                 onTrimVideo={handleTrimVideoClick}
                 onDownloadVideo={downloadVideo}
+                onViewVideo={handleViewVideo}
               />
             </CardContent>
           </Card>
@@ -504,6 +510,14 @@ const AdminDashboard = () => {
             )}
           </DialogContent>
         </Dialog>
+
+        {/* Video Viewer Dialog */}
+        <VideoViewerDialog
+          isOpen={!!viewingVideo}
+          onClose={() => setViewingVideo(null)}
+          videoUrl={viewingVideo?.video_url || null}
+          submissionName={viewingVideo?.full_name || ''}
+        />
       </div>
     </div>
   );

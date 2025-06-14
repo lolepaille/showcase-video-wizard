@@ -701,7 +701,7 @@ const EditSubmissionForm: React.FC<EditSubmissionFormProps> = ({ submission, onS
           Save Changes
         </Button>
       </div>
-    </div>
+    </form>
   );
 };
 

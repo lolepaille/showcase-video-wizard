@@ -69,8 +69,7 @@ serve(async (req) => {
         )
       }
       
-      const { id, ...updates } = body
-      
+      const { id, ...rest } = body;
       if (!id) {
         console.error('No submission ID provided for update')
         return new Response(
@@ -82,13 +81,26 @@ serve(async (req) => {
         )
       }
 
-      console.log('Updating submission:', id, 'with updates:', updates)
-
-      // Add updated_at timestamp
-      const updateData = {
-        ...updates,
-        updated_at: new Date().toISOString()
+      // Only allow updatable columns.
+      const allowedFields = [
+        'full_name',
+        'email',
+        'title',
+        'cluster',
+        'profile_picture_url',
+        'video_url',
+        'notes',
+        'is_published'
+      ]
+      const updateData: Record<string, any> = {};
+      for (const key of allowedFields) {
+        if (key in rest) {
+          updateData[key] = rest[key];
+        }
       }
+      updateData.updated_at = new Date().toISOString();
+
+      console.log('Updating submission:', id, 'payload:', JSON.stringify(updateData, null, 2))
       
       const { data, error } = await supabaseClient
         .from('submissions')

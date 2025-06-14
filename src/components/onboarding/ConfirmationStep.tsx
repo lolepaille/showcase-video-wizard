@@ -2,7 +2,7 @@
 import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { CheckCircle2, Trophy, Mail, Phone } from 'lucide-react';
+import { CheckCircle, Trophy, Share2, ArrowLeft } from 'lucide-react';
 import type { SubmissionData } from '@/pages/Index';
 
 interface ConfirmationStepProps {
@@ -10,79 +10,105 @@ interface ConfirmationStepProps {
 }
 
 const ConfirmationStep: React.FC<ConfirmationStepProps> = ({ data }) => {
+  const handleStartOver = () => {
+    window.location.reload();
+  };
+
+  const handleViewShowcase = () => {
+    window.open('/showcase', '_blank');
+  };
+
+  const handleShare = async () => {
+    if (navigator.share) {
+      try {
+        await navigator.share({
+          title: 'RMIT L&T Showcase - Wall of High Achievers',
+          text: `Check out ${data.fullName}'s submission to the RMIT L&T Showcase!`,
+          url: window.location.origin + '/showcase'
+        });
+      } catch (error) {
+        console.log('Error sharing:', error);
+      }
+    } else {
+      // Fallback for browsers that don't support Web Share API
+      navigator.clipboard.writeText(window.location.origin + '/showcase').then(() => {
+        alert('Showcase link copied to clipboard!');
+      });
+    }
+  };
+
   return (
     <div className="max-w-2xl mx-auto">
       <Card className="border-0 shadow-xl bg-white/95 backdrop-blur">
         <CardHeader className="text-center pb-6">
-          <div className="mx-auto mb-4 p-4 bg-gradient-to-r from-green-500 to-blue-500 rounded-full w-20 h-20 flex items-center justify-center">
-            <CheckCircle2 className="h-10 w-10 text-white" />
+          <div className="mx-auto mb-4 p-4 bg-green-100 rounded-full w-20 h-20 flex items-center justify-center">
+            <CheckCircle className="h-12 w-12 text-green-600" />
           </div>
-          <CardTitle className="text-3xl font-bold bg-gradient-to-r from-green-600 to-blue-600 bg-clip-text text-transparent">
+          <CardTitle className="text-3xl font-bold text-green-800 mb-2">
             Submission Complete!
           </CardTitle>
-          <p className="text-lg text-muted-foreground mt-2">
-            Thank you for your contribution to the L&T Showcase
+          <p className="text-lg text-muted-foreground">
+            Thank you for contributing to the RMIT L&T Showcase
           </p>
         </CardHeader>
         
         <CardContent className="space-y-6">
-          <div className="bg-green-50 border border-green-200 rounded-lg p-6">
-            <div className="flex items-center gap-3 mb-4">
-              <CheckCircle2 className="h-5 w-5 text-green-600" />
-              <h3 className="font-semibold text-green-800">Your video has been received</h3>
-            </div>
-            <div className="text-green-700 space-y-2">
-              <p><strong>Submitted by:</strong> {data.firstName}</p>
-              <p><strong>Email:</strong> {data.email}</p>
-              <p><strong>Submission Date:</strong> {new Date().toLocaleDateString()}</p>
-            </div>
-          </div>
-
-          <div className="bg-blue-50 border border-blue-200 rounded-lg p-6">
-            <div className="flex items-center gap-3 mb-4">
-              <Trophy className="h-5 w-5 text-blue-600" />
-              <h3 className="font-semibold text-blue-800">What happens next?</h3>
-            </div>
-            <ul className="text-blue-700 space-y-2">
-              <li>• Your video will be reviewed by our team</li>
-              <li>• We'll prepare it for the Wall of High Achievers showcase</li>
-              <li>• You'll receive your RMIT gift as a thank you</li>
-              <li>• Your innovation will inspire colleagues across the university</li>
-            </ul>
-          </div>
-
-          <div className="bg-gray-50 border border-gray-200 rounded-lg p-6">
-            <h3 className="font-semibold text-gray-800 mb-4 flex items-center gap-2">
-              <Mail className="h-5 w-5" />
-              Need Support?
-            </h3>
-            <div className="text-gray-700 space-y-3">
-              <p>If you have any questions or need assistance, please contact:</p>
-              <div className="space-y-2">
-                <div className="flex items-center gap-2">
-                  <Mail className="h-4 w-4 text-gray-500" />
-                  <span><strong>Elvin William:</strong> elvin.william@rmit.edu.au</span>
-                </div>
-                <div className="flex items-center gap-2">
-                  <Mail className="h-4 w-4 text-gray-500" />
-                  <span><strong>Rebekah Brown:</strong> rebekah.brown@rmit.edu.au</span>
-                </div>
+          <div className="bg-green-50 p-6 rounded-lg border border-green-200">
+            <h3 className="font-semibold text-lg mb-4 text-green-900">What happens next?</h3>
+            <div className="space-y-3 text-green-800">
+              <div className="flex items-start gap-3">
+                <div className="w-2 h-2 bg-green-600 rounded-full mt-2 flex-shrink-0"></div>
+                <span>Your submission will be reviewed by our team</span>
+              </div>
+              <div className="flex items-start gap-3">
+                <div className="w-2 h-2 bg-green-600 rounded-full mt-2 flex-shrink-0"></div>
+                <span>Once approved, it will appear on the Wall of High Achievers</span>
+              </div>
+              <div className="flex items-start gap-3">
+                <div className="w-2 h-2 bg-green-600 rounded-full mt-2 flex-shrink-0"></div>
+                <span>You'll receive your RMIT gift as a token of appreciation</span>
               </div>
             </div>
           </div>
 
-          <div className="text-center pt-4">
-            <Button
-              onClick={() => window.location.reload()}
-              variant="outline"
-              className="px-8"
+          <div className="bg-blue-50 p-6 rounded-lg border border-blue-200">
+            <h3 className="font-semibold text-lg mb-2 text-blue-900">Submission Summary</h3>
+            <div className="space-y-2 text-blue-800">
+              <p><strong>Name:</strong> {data.fullName}</p>
+              <p><strong>Email:</strong> {data.email}</p>
+              {data.title && <p><strong>Title:</strong> {data.title}</p>}
+              <p><strong>Cluster:</strong> {data.cluster}</p>
+            </div>
+          </div>
+
+          <div className="flex flex-col sm:flex-row gap-4">
+            <Button 
+              onClick={handleViewShowcase}
+              className="flex-1 bg-gradient-to-r from-blue-600 to-red-600 hover:from-blue-700 hover:to-red-700"
             >
-              Submit Another Video
+              <Trophy className="h-4 w-4 mr-2" />
+              View Showcase
+            </Button>
+            
+            <Button 
+              variant="outline"
+              onClick={handleShare}
+              className="flex-1"
+            >
+              <Share2 className="h-4 w-4 mr-2" />
+              Share
             </Button>
           </div>
 
-          <div className="text-center text-sm text-muted-foreground">
-            <p>Thank you for being part of RMIT's learning and teaching excellence!</p>
+          <div className="pt-6 border-t">
+            <Button 
+              variant="ghost" 
+              onClick={handleStartOver}
+              className="w-full"
+            >
+              <ArrowLeft className="h-4 w-4 mr-2" />
+              Submit Another Entry
+            </Button>
           </div>
         </CardContent>
       </Card>

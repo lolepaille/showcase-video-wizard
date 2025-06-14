@@ -7,11 +7,11 @@ import { Mail, User, Briefcase, Building } from 'lucide-react';
 import type { ClusterType } from '@/pages/Index';
 
 interface ContactInformationProps {
-  firstName: string;
+  fullName: string;
   email: string;
   title: string;
   cluster: ClusterType | '';
-  onFirstNameChange: (value: string) => void;
+  onFullNameChange: (value: string) => void;
   onEmailChange: (value: string) => void;
   onTitleChange: (value: string) => void;
   onClusterChange: (value: ClusterType) => void;
@@ -26,11 +26,11 @@ const clusters: ClusterType[] = [
 ];
 
 const ContactInformation: React.FC<ContactInformationProps> = ({
-  firstName,
+  fullName,
   email,
   title,
   cluster,
-  onFirstNameChange,
+  onFullNameChange,
   onEmailChange,
   onTitleChange,
   onClusterChange
@@ -40,15 +40,15 @@ const ContactInformation: React.FC<ContactInformationProps> = ({
       <h3 className="text-lg font-semibold">Contact Information</h3>
       <div className="grid gap-4 md:grid-cols-2">
         <div className="space-y-2">
-          <Label htmlFor="reviewFirstName" className="flex items-center gap-2">
+          <Label htmlFor="reviewFullName" className="flex items-center gap-2">
             <User className="h-4 w-4" />
-            First Name *
+            Full Name *
           </Label>
           <Input
-            id="reviewFirstName"
+            id="reviewFullName"
             type="text"
-            value={firstName}
-            onChange={(e) => onFirstNameChange(e.target.value)}
+            value={fullName}
+            onChange={(e) => onFullNameChange(e.target.value)}
             required
           />
         </div>

@@ -25,7 +25,7 @@ const clusters: ClusterType[] = [
 const WelcomeStep: React.FC<WelcomeStepProps> = ({ onNext, data, updateData }) => {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (data.firstName.trim() && data.email.trim() && data.cluster) {
+    if (data.fullName.trim() && data.email.trim() && data.cluster) {
       onNext();
     }
   };
@@ -37,7 +37,7 @@ const WelcomeStep: React.FC<WelcomeStepProps> = ({ onNext, data, updateData }) =
     }
   };
 
-  const isFormValid = data.firstName.trim() && data.email.trim() && data.cluster;
+  const isFormValid = data.fullName.trim() && data.email.trim() && data.cluster;
 
   return (
     <div className="max-w-2xl mx-auto">
@@ -58,15 +58,15 @@ const WelcomeStep: React.FC<WelcomeStepProps> = ({ onNext, data, updateData }) =
           <form onSubmit={handleSubmit} className="space-y-6">
             <div className="grid gap-4 md:grid-cols-2">
               <div className="space-y-2">
-                <Label htmlFor="firstName" className="text-base font-medium">
-                  First Name *
+                <Label htmlFor="fullName" className="text-base font-medium">
+                  Full Name *
                 </Label>
                 <Input
-                  id="firstName"
+                  id="fullName"
                   type="text"
-                  placeholder="Enter your first name"
-                  value={data.firstName}
-                  onChange={(e) => updateData({ firstName: e.target.value })}
+                  placeholder="Enter your full name"
+                  value={data.fullName}
+                  onChange={(e) => updateData({ fullName: e.target.value })}
                   required
                   className="text-lg h-12"
                 />

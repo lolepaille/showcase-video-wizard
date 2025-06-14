@@ -16,6 +16,7 @@ interface Submission {
   cluster: ClusterType;
   profile_picture_url: string | null;
   video_url: string | null;
+  notes: any;
   is_published: boolean;
 }
 
@@ -260,9 +261,29 @@ const Showcase = () => {
                     onEnded={handleVideoEnd}
                     onLoadedMetadata={(e) => {
                       const video = e.currentTarget;
-                      // If we have stored start/end times, we could use them here
-                      // For now, just play the full video
-                      console.log('Video loaded for showcase playback');
+                      // Use stored start/end times from notes if available
+                      const startTime = selectedSubmission.notes?.startTime;
+                      const endTime = selectedSubmission.notes?.endTime;
+                      
+                      if (startTime !== undefined) {
+                        console.log('Setting video start time to:', startTime);
+                        video.currentTime = startTime;
+                      }
+                      
+                      // Set up time update listener to handle end time
+                      if (endTime !== undefined) {
+                        const handleTimeUpdate = () => {
+                          if (video.currentTime >= endTime) {
+                            video.pause();
+                            video.removeEventListener('timeupdate', handleTimeUpdate);
+                            // Trigger video end handler
+                            handleVideoEnd();
+                          }
+                        };
+                        video.addEventListener('timeupdate', handleTimeUpdate);
+                      }
+                      
+                      console.log('Video loaded for showcase playback with trim times:', { startTime, endTime });
                     }}
                   />
                 ) : (

@@ -22,10 +22,11 @@ export const useVideoTrimmer = ({ videoBlob, videoUrl, onTrimComplete }: UseVide
   const mediaRecorderInstanceRef = useRef<MediaRecorder | null>(null);
   const progressIntervalIdRef = useRef<number | null>(null);
   const sourceBlobRef = useRef<Blob | null>(null);
+  const metadataLoadAttemptRef = useRef<number>(0);
 
   useEffect(() => {
     // Clean up any previous URL
-    if (videoUrlRef.current) {
+    if (videoUrlRef.current && sourceBlobRef.current) {
       URL.revokeObjectURL(videoUrlRef.current);
       videoUrlRef.current = '';
     }
@@ -36,6 +37,7 @@ export const useVideoTrimmer = ({ videoBlob, videoUrl, onTrimComplete }: UseVide
       videoUrlRef.current = URL.createObjectURL(videoBlob);
       console.log('useVideoTrimmer: New video URL created from blob:', videoUrlRef.current);
     } else if (videoUrl) {
+      sourceBlobRef.current = null;
       videoUrlRef.current = videoUrl;
       console.log('useVideoTrimmer: Using provided video URL:', videoUrlRef.current);
     } else {
@@ -43,13 +45,6 @@ export const useVideoTrimmer = ({ videoBlob, videoUrl, onTrimComplete }: UseVide
       return;
     }
     
-    // Force reload of video if src is already set to ensure metadata is re-read
-    if (videoRef.current) {
-      if (videoRef.current.src === videoUrlRef.current) {
-        videoRef.current.load(); 
-      }
-    }
-
     // Reset state
     setIsLoaded(false);
     setCurrentTime(0);
@@ -58,6 +53,33 @@ export const useVideoTrimmer = ({ videoBlob, videoUrl, onTrimComplete }: UseVide
     setEndTime(0);
     setIsPlaying(false);
     setError('');
+    metadataLoadAttemptRef.current = 0;
+
+    // Force reload of video if src is already set to ensure metadata is re-read
+    if (videoRef.current) {
+      const video = videoRef.current;
+      
+      // Add additional video attributes for better compatibility
+      video.crossOrigin = 'anonymous';
+      video.preload = 'metadata';
+      
+      if (video.src === videoUrlRef.current) {
+        video.load(); 
+      }
+      
+      // Set up a timeout for metadata loading
+      const metadataTimeout = setTimeout(() => {
+        if (!isLoaded && metadataLoadAttemptRef.current < 3) {
+          console.warn('useVideoTrimmer: Metadata loading timeout, retrying...');
+          metadataLoadAttemptRef.current++;
+          video.load();
+        } else if (!isLoaded) {
+          setError('Failed to load video metadata after multiple attempts. The video file may be corrupted or in an unsupported format.');
+        }
+      }, 10000); // 10 second timeout
+
+      return () => clearTimeout(metadataTimeout);
+    }
 
     return () => {
       if (videoUrlRef.current && videoBlob) { // Only revoke if we created the URL
@@ -77,25 +99,86 @@ export const useVideoTrimmer = ({ videoBlob, videoUrl, onTrimComplete }: UseVide
       
       mediaRecorderInstanceRef.current = null;
     };
-  }, [videoBlob, videoUrl]);
+  }, [videoBlob, videoUrl, isLoaded]);
 
   const handleLoadedMetadata = useCallback(() => {
     if (videoRef.current) {
       const dur = videoRef.current.duration;
-      if (isFinite(dur) && dur > 0) {
+      console.log('useVideoTrimmer: Raw duration received:', dur);
+      
+      // More robust duration validation
+      if (isFinite(dur) && dur > 0 && dur !== Infinity) {
         setDuration(dur);
-        setEndTime(dur); // Initialize endTime to full duration
-        setStartTime(0); // Initialize startTime to 0
+        setEndTime(dur);
+        setStartTime(0);
         setIsLoaded(true);
         setError('');
+        metadataLoadAttemptRef.current = 0;
         console.log('useVideoTrimmer: Video loaded successfully, duration:', dur);
       } else {
-        console.error('useVideoTrimmer: Invalid duration detected on load:', dur, 'Video URL:', videoUrlRef.current);
-        setError(`Failed to load video metadata. The video duration is invalid (reported: ${dur}). Please try re-recording or using a different video.`);
-        setIsLoaded(false);
-        setDuration(0);
-        setEndTime(0);
-        setStartTime(0);
+        console.error('useVideoTrimmer: Invalid duration detected:', dur);
+        
+        // Try to get duration through other means
+        const video = videoRef.current;
+        
+        // Attempt to seek to end to determine duration
+        const originalTime = video.currentTime;
+        
+        const seekToEnd = () => {
+          try {
+            video.currentTime = Number.MAX_SAFE_INTEGER;
+            
+            const checkDuration = () => {
+              const newDur = video.duration;
+              const currentPos = video.currentTime;
+              
+              if (isFinite(newDur) && newDur > 0 && newDur !== Infinity) {
+                setDuration(newDur);
+                setEndTime(newDur);
+                setStartTime(0);
+                setIsLoaded(true);
+                setError('');
+                video.currentTime = originalTime;
+                console.log('useVideoTrimmer: Duration determined through seeking:', newDur);
+              } else if (currentPos > 0 && isFinite(currentPos)) {
+                // Use current position as approximate duration
+                setDuration(currentPos);
+                setEndTime(currentPos);
+                setStartTime(0);
+                setIsLoaded(true);
+                setError('');
+                video.currentTime = originalTime;
+                console.log('useVideoTrimmer: Using seek position as duration:', currentPos);
+              } else {
+                video.currentTime = originalTime;
+                setError(`Unable to determine video duration. The video file may be corrupted, incomplete, or in an unsupported format. Please try re-uploading the video.`);
+                setIsLoaded(false);
+              }
+            };
+            
+            video.addEventListener('seeked', checkDuration, { once: true });
+            
+            // Fallback if seeked event doesn't fire
+            setTimeout(() => {
+              video.removeEventListener('seeked', checkDuration);
+              checkDuration();
+            }, 2000);
+            
+          } catch (seekError) {
+            console.error('useVideoTrimmer: Error during seek attempt:', seekError);
+            setError(`Failed to load video metadata. Please ensure the video file is not corrupted and try again.`);
+            setIsLoaded(false);
+          }
+        };
+        
+        // Only attempt seeking if we haven't tried too many times
+        if (metadataLoadAttemptRef.current < 2) {
+          metadataLoadAttemptRef.current++;
+          setTimeout(seekToEnd, 1000);
+        } else {
+          setError(`Failed to load video metadata after multiple attempts. The video duration could not be determined. Please try re-uploading the video or use a different format.`);
+          setIsLoaded(false);
+        }
       }
     }
   }, []);
@@ -105,17 +188,27 @@ export const useVideoTrimmer = ({ videoBlob, videoUrl, onTrimComplete }: UseVide
     let errorMsg = 'An unknown video error occurred.';
     if (videoElement.error) {
       switch (videoElement.error.code) {
-        case videoElement.error.MEDIA_ERR_ABORTED: errorMsg = 'Video playback aborted by user or script.'; break;
-        case videoElement.error.MEDIA_ERR_NETWORK: errorMsg = 'A network error caused the video download to fail part-way.'; break;
-        case videoElement.error.MEDIA_ERR_DECODE: errorMsg = 'Video playback aborted due to a corruption problem or because the video used features your browser did not support.'; break;
-        case videoElement.error.MEDIA_ERR_SRC_NOT_SUPPORTED: errorMsg = 'The video could not be loaded, either because the server or network failed or because the format is not supported.'; break;
-        default: errorMsg = `An unknown video error occurred (code: ${videoElement.error.code}).`;
+        case videoElement.error.MEDIA_ERR_ABORTED: 
+          errorMsg = 'Video loading was aborted. Please try again.'; 
+          break;
+        case videoElement.error.MEDIA_ERR_NETWORK: 
+          errorMsg = 'A network error occurred while loading the video. Please check your connection and try again.'; 
+          break;
+        case videoElement.error.MEDIA_ERR_DECODE: 
+          errorMsg = 'The video file is corrupted or uses an unsupported codec. Please try re-uploading the video.'; 
+          break;
+        case videoElement.error.MEDIA_ERR_SRC_NOT_SUPPORTED: 
+          errorMsg = 'The video format is not supported by your browser. Please try uploading a different video format.'; 
+          break;
+        default: 
+          errorMsg = `Video error (code: ${videoElement.error.code}). Please try again.`;
       }
     }
-    console.error('useVideoTrimmer: Video element error event:', errorMsg, videoElement.error);
-    setError(errorMsg + ' Please try re-recording, using a different video, or check your network connection.');
+    console.error('useVideoTrimmer: Video element error:', errorMsg, videoElement.error);
+    setError(errorMsg);
     setIsLoaded(false);
     setIsTrimming(false);
+    
     if (mediaRecorderInstanceRef.current && mediaRecorderInstanceRef.current.state !== 'inactive') {
       mediaRecorderInstanceRef.current.stop();
     }
@@ -130,9 +223,8 @@ export const useVideoTrimmer = ({ videoBlob, videoUrl, onTrimComplete }: UseVide
       const time = videoRef.current.currentTime;
       if (isFinite(time)) {
         setCurrentTime(time);
-        if (isPlaying && time >= endTime) { // Use state `endTime`
+        if (isPlaying && time >= endTime) {
           videoRef.current.pause();
-          // setIsPlaying(false); // onPause handler will do this
         }
       }
     }
@@ -164,7 +256,7 @@ export const useVideoTrimmer = ({ videoBlob, videoUrl, onTrimComplete }: UseVide
     
     if (videoRef.current && videoRef.current.currentTime < validatedStart) {
       videoRef.current.currentTime = validatedStart;
-      setCurrentTime(validatedStart); // Sync state
+      setCurrentTime(validatedStart);
     }
   }, [endTime]);
 
@@ -175,13 +267,12 @@ export const useVideoTrimmer = ({ videoBlob, videoUrl, onTrimComplete }: UseVide
     
     if (videoRef.current && videoRef.current.currentTime > validatedEnd) {
       videoRef.current.currentTime = validatedEnd;
-      setCurrentTime(validatedEnd); // Sync state
+      setCurrentTime(validatedEnd);
     }
   }, [startTime, duration]);
 
   const handleCurrentTimeChange = useCallback((value: number[]) => {
     if (videoRef.current && isLoaded) {
-      // Allow seeking anywhere for preview, but respect play range [startTime, endTime]
       const time = Math.max(0, Math.min(value[0], duration)); 
       videoRef.current.currentTime = time;
       setCurrentTime(time);
@@ -235,8 +326,8 @@ export const useVideoTrimmer = ({ videoBlob, videoUrl, onTrimComplete }: UseVide
         return;
       }
       
-      canvas.width = video.videoWidth || 640; // Default if not available
-      canvas.height = video.videoHeight || 480; // Default if not available
+      canvas.width = video.videoWidth || 640;
+      canvas.height = video.videoHeight || 480;
       
       if (canvas.width === 0 || canvas.height === 0) {
         console.error('useVideoTrimmer: Video dimensions are zero. videoWidth:', video.videoWidth, 'videoHeight:', video.videoHeight);
@@ -246,10 +337,9 @@ export const useVideoTrimmer = ({ videoBlob, videoUrl, onTrimComplete }: UseVide
       }
       console.log('useVideoTrimmer: Canvas dimensions for trimming:', canvas.width, 'x', canvas.height);
       
-      const stream = canvas.captureStream(30); // 30 FPS
+      const stream = canvas.captureStream(30);
       
       try {
-        // Fix the TypeScript error by properly casting the video element
         const videoWithCaptureStream = video as HTMLVideoElement & {
           captureStream?: () => MediaStream;
           mozCaptureStream?: () => MediaStream;
@@ -265,17 +355,16 @@ export const useVideoTrimmer = ({ videoBlob, videoUrl, onTrimComplete }: UseVide
            videoSourceStream.getAudioTracks().forEach(track => stream.addTrack(track.clone()));
            console.log('useVideoTrimmer: Added audio track from video element stream.');
         } else if (sourceBlobRef.current && sourceBlobRef.current.type.startsWith('video/')) {
-            // Fallback: If original blob has audio, try to use it
             console.warn('useVideoTrimmer: Video element stream has no audio tracks. Trimmed video might be silent if browser does not mix it.');
         }
       } catch (audioError) {
         console.warn('useVideoTrimmer: Could not add audio track to trimmed video:', audioError);
       }
       
-      let mimeTypeToUse = 'video/webm;codecs=vp9,opus'; //opus for audio
+      let mimeTypeToUse = 'video/webm;codecs=vp9,opus';
       if (!MediaRecorder.isTypeSupported(mimeTypeToUse)) mimeTypeToUse = 'video/webm;codecs=vp8,opus';
-      if (!MediaRecorder.isTypeSupported(mimeTypeToUse)) mimeTypeToUse = 'video/webm;codecs=vp9'; // vp9 without specific audio
-      if (!MediaRecorder.isTypeSupported(mimeTypeToUse)) mimeTypeToUse = 'video/webm;codecs=vp8'; // vp8 without specific audio
+      if (!MediaRecorder.isTypeSupported(mimeTypeToUse)) mimeTypeToUse = 'video/webm;codecs=vp9';
+      if (!MediaRecorder.isTypeSupported(mimeTypeToUse)) mimeTypeToUse = 'video/webm;codecs=vp8';
       if (!MediaRecorder.isTypeSupported(mimeTypeToUse)) mimeTypeToUse = 'video/webm';
       if (!MediaRecorder.isTypeSupported(mimeTypeToUse)) {
           setError('Your browser does not support required video recording formats for trimming.');
@@ -315,7 +404,7 @@ export const useVideoTrimmer = ({ videoBlob, videoUrl, onTrimComplete }: UseVide
         setIsTrimming(false);
         setTrimProgress(100); 
         mediaRecorderInstanceRef.current = null;
-        stream.getTracks().forEach(track => track.stop()); // Clean up canvas stream tracks
+        stream.getTracks().forEach(track => track.stop());
       };
       
       mediaRecorder.onerror = (event: Event) => {
@@ -328,7 +417,7 @@ export const useVideoTrimmer = ({ videoBlob, videoUrl, onTrimComplete }: UseVide
         setError('Error during video trimming process. Please try again.');
         setIsTrimming(false);
         mediaRecorderInstanceRef.current = null;
-        stream.getTracks().forEach(track => track.stop()); // Clean up canvas stream tracks
+        stream.getTracks().forEach(track => track.stop());
       };
       
       mediaRecorder.start();
@@ -344,21 +433,20 @@ export const useVideoTrimmer = ({ videoBlob, videoUrl, onTrimComplete }: UseVide
           originalOnSeeked.call(video, new Event('seeked'));
         }
         if (seekTimeoutId) clearTimeout(seekTimeoutId);
-        seekTimeoutId = null; // Clear timeout as seek was successful
+        seekTimeoutId = null;
 
         console.log('useVideoTrimmer: Video seeked to startTime.');
         try {
-          // Ensure video is muted during this playback to avoid echo if audio is captured from it
           const originalMuted = video.muted;
           video.muted = true; 
           await video.play();
-          video.muted = originalMuted; // Restore muted state
+          video.muted = originalMuted;
 
           console.log('useVideoTrimmer: Video playback started for frame capture.');
           
           let frameCaptureStartTime = Date.now();
           
-          if (progressIntervalIdRef.current) clearInterval(progressIntervalIdRef.current); // Clear any existing interval
+          if (progressIntervalIdRef.current) clearInterval(progressIntervalIdRef.current);
           progressIntervalIdRef.current = setInterval(() => {
             const currentVideoRef = videoRef.current; 
             const currentRecorder = mediaRecorderInstanceRef.current;
@@ -371,14 +459,12 @@ export const useVideoTrimmer = ({ videoBlob, videoUrl, onTrimComplete }: UseVide
               return;
             }
             
-            // Check if recorder is in a valid recording state
             if (currentRecorder.state === 'inactive' || currentRecorder.state === 'paused') {
                 console.warn(`useVideoTrimmer: Interval fired but recorder not in 'recording' state (state: ${currentRecorder.state}). Clearing interval.`);
                 if (progressIntervalIdRef.current) {
                   clearInterval(progressIntervalIdRef.current);
                   progressIntervalIdRef.current = null;
                 }
-                // Optionally stop recorder if it's in an unexpected state but not inactive
                 if (currentRecorder.state !== 'inactive' && currentRecorder.state !== 'paused') currentRecorder.stop();
                 return;
             }
@@ -389,14 +475,14 @@ export const useVideoTrimmer = ({ videoBlob, videoUrl, onTrimComplete }: UseVide
             const progress = Math.min((elapsed / calculatedTrimDuration) * 100, 100);
             setTrimProgress(progress);
             
-            if (currentVideoRef.currentTime >= endTime || elapsed >= calculatedTrimDuration + 0.1 ) { // Added a small buffer to ensure last frame
+            if (currentVideoRef.currentTime >= endTime || elapsed >= calculatedTrimDuration + 0.1 ) {
               if (progressIntervalIdRef.current) {
                 clearInterval(progressIntervalIdRef.current);
                 progressIntervalIdRef.current = null;
               }
               
               currentVideoRef.pause();
-              if (currentRecorder.state === 'recording') { // This check is fine as state is confirmed 'recording' above
+              if (currentRecorder.state === 'recording') {
                 currentRecorder.stop();
               }
               console.log('useVideoTrimmer: Trimming duration reached or passed. Elapsed:', elapsed, "CurrentTime:", currentVideoRef.currentTime);
@@ -414,13 +500,12 @@ export const useVideoTrimmer = ({ videoBlob, videoUrl, onTrimComplete }: UseVide
         }
       };
       
-      // Safety timeout for seek operation
       seekTimeoutId = setTimeout(() => {
-        video.onseeked = originalOnSeeked; // Restore original onseeked
+        video.onseeked = originalOnSeeked;
         if (mediaRecorderInstanceRef.current && mediaRecorderInstanceRef.current.state === 'recording') {
             console.error('useVideoTrimmer: Seek operation timed out. Aborting trim.');
             setError('Video seeking failed or timed out. Cannot trim.');
-            if (mediaRecorderInstanceRef.current.state === 'recording') { // Check again before stopping
+            if (mediaRecorderInstanceRef.current.state === 'recording') {
                  mediaRecorderInstanceRef.current.stop();
             }
             setIsTrimming(false);
@@ -451,12 +536,12 @@ export const useVideoTrimmer = ({ videoBlob, videoUrl, onTrimComplete }: UseVide
       recorder.ondataavailable = null;
       recorder.onerror = null;
       
-      if (recorder.state === 'recording') { // Only stop if recording
+      if (recorder.state === 'recording') {
         recorder.stop();
       }
       console.log('useVideoTrimmer: MediaRecorder operations halted by cancelTrimming.');
     }
-    mediaRecorderInstanceRef.current = null; // Ensure it's nulled
+    mediaRecorderInstanceRef.current = null;
 
     if (progressIntervalIdRef.current) {
       clearInterval(progressIntervalIdRef.current);
@@ -470,8 +555,6 @@ export const useVideoTrimmer = ({ videoBlob, videoUrl, onTrimComplete }: UseVide
 
     setIsTrimming(false);
     setTrimProgress(0);
-    // Don't clear error on cancel, user might want to see it.
-    // setError('');
     console.log('useVideoTrimmer: Video trimming process cancelled by user action.');
   }, []);
 
@@ -480,11 +563,9 @@ export const useVideoTrimmer = ({ videoBlob, videoUrl, onTrimComplete }: UseVide
     setError('');
     setTrimProgress(0);
     setIsTrimming(false); 
-    // Ensure any previous instances are fully stopped/cleaned up
     if (mediaRecorderInstanceRef.current || progressIntervalIdRef.current) {
-        cancelTrimming(); // Use cancelTrimming for proper cleanup
+        cancelTrimming();
     }
-    // Slight delay to ensure cleanup completes before restarting
     setTimeout(() => {
       trimVideo();
     }, 100);

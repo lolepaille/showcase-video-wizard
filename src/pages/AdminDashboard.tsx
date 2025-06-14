@@ -81,25 +81,51 @@ const AdminDashboard = () => {
 
   const handleTogglePublish = async (submission: Submission) => {
     try {
-      const { data, error } = await supabase.functions.invoke('admin-submissions', {
+      const { data: responseData, error: invokeError } = await supabase.functions.invoke('admin-submissions', {
         method: 'PUT',
-        body: { 
-          id: submission.id, 
-          is_published: !submission.is_published 
+        body: {
+          id: submission.id,
+          is_published: !submission.is_published
         }
       });
 
-      if (error) {
-        setError('Failed to update submission');
+      if (invokeError) {
+        console.error('Error invoking admin-submissions for toggle publish:', invokeError);
+        const errorMessage = 
+          (invokeError.data && invokeError.data.error) || // Error from Edge Function's JSON response
+          invokeError.message || // General message from invokeError
+          'Failed to update submission status.';
+        
+        setError(errorMessage);
+        toast({
+          title: "Update Failed",
+          description: errorMessage,
+          variant: "destructive",
+        });
         return;
       }
 
-      setSubmissions(prev => 
-        prev.map(s => s.id === submission.id ? { ...s, is_published: !s.is_published } : s)
+      setSubmissions(prev =>
+        prev.map(s => s.id === submission.id ? { ...s, is_published: !s.is_published, updated_at: responseData?.submission?.updated_at || new Date().toISOString() } : s)
       );
+      toast({
+        title: "Success",
+        description: `Submission ${!submission.is_published ? 'published' : 'unpublished'} successfully.`,
+      });
+      setError(''); // Clear any previous error
+
     } catch (err) {
-      console.error('Error updating submission:', err);
-      setError('Failed to update submission');
+      console.error('Network/unexpected error during toggle publish:', err);
+      let message = 'An unexpected error occurred while toggling publish status.';
+      if (err instanceof Error) {
+        message = err.message;
+      }
+      setError(message);
+      toast({
+        title: "Error",
+        description: message,
+        variant: "destructive",
+      });
     }
   };
 

@@ -1,5 +1,4 @@
-
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import WelcomeStep from '@/components/onboarding/WelcomeStep';
 import RequirementsStep from '@/components/onboarding/RequirementsStep';
 import QuestionsStep from '@/components/onboarding/QuestionsStep';
@@ -7,6 +6,7 @@ import RecordingStep from '@/components/onboarding/RecordingStep';
 import ReviewStep from '@/components/onboarding/ReviewStep';
 import ConfirmationStep from '@/components/onboarding/ConfirmationStep';
 import ProgressBar from '@/components/onboarding/ProgressBar';
+import { ensureStorageBuckets } from '@/lib/storage-setup';
 
 export type OnboardingStep = 'welcome' | 'requirements' | 'questions' | 'recording' | 'review' | 'confirmation';
 
@@ -39,6 +39,11 @@ const Index = () => {
       question3: '',
     },
   });
+
+  // Initialize storage buckets on component mount
+  useEffect(() => {
+    ensureStorageBuckets();
+  }, []);
 
   const steps: OnboardingStep[] = ['welcome', 'requirements', 'questions', 'recording', 'review', 'confirmation'];
   const currentStepIndex = steps.indexOf(currentStep);

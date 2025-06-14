@@ -78,14 +78,28 @@ const VideoDialog: React.FC<VideoDialogProps> = ({
             )}
             
             <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-6">
-              <div className="text-white">
-                <h3 className="text-xl font-semibold">{submission.full_name}</h3>
-                {submission.title && (
-                  <p className="text-gray-300">{submission.title}</p>
+              <div className="flex items-center gap-4 text-white">
+                {submission.profile_picture_url ? (
+                  <img
+                    src={submission.profile_picture_url}
+                    alt={submission.full_name}
+                    className="w-16 h-16 rounded-full object-cover border-2 border-white shadow-lg"
+                  />
+                ) : (
+                  <div className="w-16 h-16 rounded-full bg-gradient-to-br from-blue-400 to-purple-400 flex items-center justify-center text-white text-xl font-bold border-2 border-white shadow-lg">
+                    {submission.full_name.charAt(0)}
+                  </div>
                 )}
-                <Badge variant="secondary" className="mt-2">
-                  {submission.cluster}
-                </Badge>
+                
+                <div className="flex-1">
+                  <h3 className="text-xl font-semibold">{submission.full_name}</h3>
+                  {submission.title && (
+                    <p className="text-gray-300">{submission.title}</p>
+                  )}
+                  <Badge variant="secondary" className="mt-2">
+                    {submission.cluster}
+                  </Badge>
+                </div>
               </div>
             </div>
           </div>

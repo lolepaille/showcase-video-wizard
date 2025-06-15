@@ -19,7 +19,6 @@ const VideoDialog: React.FC<VideoDialogProps> = ({
 }) => {
   const videoRef = useRef<HTMLVideoElement>(null);
 
-  // Extract trim times safely as numbers
   const startTime: number | undefined = submission && submission.notes && typeof submission.notes.startTime === 'number'
     ? submission.notes.startTime
     : (submission && submission.notes && submission.notes.startTime !== undefined
@@ -31,7 +30,6 @@ const VideoDialog: React.FC<VideoDialogProps> = ({
       ? Number(submission.notes.endTime)
       : undefined);
 
-  // Handle playback logic
   useEffect(() => {
     const video = videoRef.current;
     if (!video || !submission?.video_url) return;
@@ -66,9 +64,34 @@ const VideoDialog: React.FC<VideoDialogProps> = ({
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-4xl w-full h-[80vh] p-0">
+      <DialogContent className="max-w-4xl w-full h-[80vh] p-0 relative overflow-hidden">
         {submission && (
           <div className="relative w-full h-full bg-black">
+            {/* Profile Details at the Top */}
+            <div className="absolute top-0 left-0 right-0 z-10 bg-gradient-to-b from-black/90 to-transparent p-6 flex items-center gap-4 text-white">
+              {submission.profile_picture_url ? (
+                <img
+                  src={submission.profile_picture_url}
+                  alt={submission.full_name}
+                  className="w-16 h-16 rounded-full object-cover border-2 border-white shadow-lg"
+                />
+              ) : (
+                <div className="w-16 h-16 rounded-full bg-gradient-to-br from-blue-400 to-purple-400 flex items-center justify-center text-white text-xl font-bold border-2 border-white shadow-lg">
+                  {submission.full_name.charAt(0)}
+                </div>
+              )}
+
+              <div className="flex-1 min-w-0">
+                <h3 className="text-xl font-semibold truncate">{submission.full_name}</h3>
+                {submission.title && (
+                  <p className="text-gray-300 truncate">{submission.title}</p>
+                )}
+                <Badge variant="secondary" className="mt-2">
+                  {submission.cluster}
+                </Badge>
+              </div>
+            </div>
+            {/* Video Player */}
             {submission.video_url ? (
               <video
                 ref={videoRef}
@@ -77,6 +100,7 @@ const VideoDialog: React.FC<VideoDialogProps> = ({
                 autoPlay
                 className="w-full h-full object-contain"
                 // No trimming logic here; handled by useEffect
+                style={{ position: "absolute", top: 0, left: 0, width: "100%", height: "100%" }}
               />
             ) : (
               <div className="flex items-center justify-center h-full text-white">
@@ -88,32 +112,6 @@ const VideoDialog: React.FC<VideoDialogProps> = ({
                 </div>
               </div>
             )}
-            
-            <div className="absolute bottom-0 left-0 right-0 bg-gradient-to-t from-black/80 to-transparent p-6">
-              <div className="flex items-center gap-4 text-white">
-                {submission.profile_picture_url ? (
-                  <img
-                    src={submission.profile_picture_url}
-                    alt={submission.full_name}
-                    className="w-16 h-16 rounded-full object-cover border-2 border-white shadow-lg"
-                  />
-                ) : (
-                  <div className="w-16 h-16 rounded-full bg-gradient-to-br from-blue-400 to-purple-400 flex items-center justify-center text-white text-xl font-bold border-2 border-white shadow-lg">
-                    {submission.full_name.charAt(0)}
-                  </div>
-                )}
-                
-                <div className="flex-1">
-                  <h3 className="text-xl font-semibold">{submission.full_name}</h3>
-                  {submission.title && (
-                    <p className="text-gray-300">{submission.title}</p>
-                  )}
-                  <Badge variant="secondary" className="mt-2">
-                    {submission.cluster}
-                  </Badge>
-                </div>
-              </div>
-            </div>
           </div>
         )}
       </DialogContent>
@@ -122,4 +120,3 @@ const VideoDialog: React.FC<VideoDialogProps> = ({
 };
 
 export default VideoDialog;
-

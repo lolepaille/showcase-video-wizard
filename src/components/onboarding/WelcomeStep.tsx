@@ -68,45 +68,42 @@ const WelcomeStep: React.FC<WelcomeStepProps> = ({ onNext, data, updateData }) =
       setRegistering(true);
       setRegisterError(null);
       try {
-        const response = await fetch("/functions/v1/register-user", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
+        console.log('Calling register-user function with:', {
+          email: data.email.trim(),
+          fullName: data.fullName.trim(),
+          cluster: data.cluster,
+          title: data.title?.trim() || undefined,
+        });
+
+        // Use Supabase functions.invoke instead of fetch
+        const { data: result, error } = await supabase.functions.invoke('register-user', {
+          body: {
             email: data.email.trim(),
             fullName: data.fullName.trim(),
             cluster: data.cluster,
             title: data.title?.trim() || undefined,
-          }),
+          }
         });
 
-        // Improved: Graceful error handling for non-OK and empty responses
-        let result: any = {};
-        let text = await response.text();
-        try {
-          result = text ? JSON.parse(text) : {};
-        } catch (jsonErr) {
-          console.error("Register-user response is not valid JSON:", text);
-          setRegisterError("Unexpected server error (invalid response).");
+        if (error) {
+          console.error('Register-user function error:', error);
+          setRegisterError(error.message || "Registration service error. Please try again later.");
           setRegistering(false);
           return;
         }
-        if (!response.ok) {
-          // Handle 404 or other errors meaningfully
-          const errorMsg = result.error || response.status === 404
-            ? "Registration service not available. Please try again later."
-            : "Failed to register user.";
-          setRegisterError(errorMsg);
-          setRegistering(false);
-          return;
-        }
-        if (!result.user_id) {
+
+        if (!result?.user_id) {
+          console.error('Register-user result missing user_id:', result);
           setRegisterError("Registration failed: No user id returned.");
           setRegistering(false);
           return;
         }
+
+        console.log('Registration successful, user_id:', result.user_id);
         window.localStorage.setItem("registered_user_id", result.user_id);
         onNext();
       } catch (err: any) {
+        console.error('Registration error:', err);
         setRegisterError(err.message || "Unknown error occurred during registration.");
       } finally {
         setRegistering(false);
@@ -176,5 +173,3 @@ const WelcomeStep: React.FC<WelcomeStepProps> = ({ onNext, data, updateData }) =
 };
 
 export default WelcomeStep;
-
-// NOTE: src/components/onboarding/WelcomeStep.tsx is getting quite long. Consider asking me to refactor soon!

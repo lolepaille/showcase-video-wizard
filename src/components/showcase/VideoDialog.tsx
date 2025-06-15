@@ -1,3 +1,4 @@
+
 import React, { useRef, useEffect } from 'react';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
@@ -71,10 +72,9 @@ const VideoDialog: React.FC<VideoDialogProps> = ({
           p-0 
           relative 
           overflow-hidden
-          !top-10 !translate-y-0
           sm:rounded-xl
         "
-        style={{ maxWidth: "70vw", top: "2.5rem" }}
+        // Remove custom style and top override to use default vertical centering
       >
         {submission && (
           <div className="relative w-full h-full bg-black">

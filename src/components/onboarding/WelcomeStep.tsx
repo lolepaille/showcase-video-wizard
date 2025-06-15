@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -80,12 +81,12 @@ const WelcomeStep: React.FC<WelcomeStepProps> = ({ onNext, data, updateData }) =
     <div className="max-w-2xl mx-auto">
       <Card className="border-0 shadow-xl bg-white/95 backdrop-blur">
         <CardHeader className="text-center pb-6">
-          <div className="mx-auto mb-4 p-3 bg-gradient-to-r from-blue-600 to-red-600 rounded-full w-16 h-16 flex items-center justify-center">
-            {/* Trophy icon */}
-            <svg className="h-8 w-8 text-white" fill="none" stroke="currentColor" strokeWidth={2.5} viewBox="0 0 24 24">
-              <path d="M8 21h8M12 17v4M7 4V2h10v2"/>
-              <path d="M17 4h1a2 2 0 0 1 2 2v1.34a6.97 6.97 0 0 1-2 4.89A7 7 0 0 1 12 13a7 7 0 0 1-6-7.77V6a2 2 0 0 1 2-2h1"/>
-            </svg>
+          <div className="mx-auto mb-4 p-3 bg-gradient-to-r from-blue-600 to-red-600 rounded-full w-16 h-16 flex items-center justify-center overflow-hidden">
+            <img 
+              src="https://images.unsplash.com/photo-1486312338219-ce68d2c6f44d?w=64&h=64&fit=crop&crop=center" 
+              alt="RMIT Logo"
+              className="w-10 h-10 object-contain filter brightness-0 invert"
+            />
           </div>
           <CardTitle className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-red-600 bg-clip-text text-transparent">
             Congratulations!

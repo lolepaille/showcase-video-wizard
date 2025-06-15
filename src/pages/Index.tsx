@@ -7,7 +7,6 @@ import ReviewStep from '@/components/onboarding/ReviewStep';
 import ConfirmationStep from '@/components/onboarding/ConfirmationStep';
 import ProgressBar from '@/components/onboarding/ProgressBar';
 import { ensureStorageBuckets } from '@/lib/storage-setup';
-import AuthPage from './Auth'; // Add this import, but used only for redirect logic below
 import { supabase } from '@/integrations/supabase/client';
 
 export type OnboardingStep = 'welcome' | 'requirements' | 'questions' | 'recording' | 'review' | 'confirmation';

@@ -54,7 +54,6 @@ const QualityChecklist: React.FC<QualityChecklistProps> = ({ checklist, onCheckl
               id={item.key}
               checked={checklist[item.key]}
               tabIndex={-1}
-              readOnly
               className="mt-1 pointer-events-none"
             />
             <div className="flex-1 text-left">
@@ -71,3 +70,4 @@ const QualityChecklist: React.FC<QualityChecklistProps> = ({ checklist, onCheckl
 };
 
 export default QualityChecklist;
+

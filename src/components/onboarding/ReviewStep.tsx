@@ -70,6 +70,11 @@ const ReviewStep: React.FC<ReviewStepProps> = ({ onNext, onPrev, data, updateDat
     }
   };
 
+  // ADD: Get current user's ID (auth required for RLS)
+  const user = supabase.auth.getUser && supabase.auth.getUser();
+  // This will give a promise, so let's just guard in handleSubmit
+  // We'll fetch user id on submit
+
   const handleSubmit = async () => {
     if (!canSubmit()) {
       toast({
@@ -90,6 +95,12 @@ const ReviewStep: React.FC<ReviewStepProps> = ({ onNext, onPrev, data, updateDat
     });
 
     try {
+      // ADD: fetch the authenticated user
+      const { data: authData, error: authError } = await supabase.auth.getUser();
+      if (authError || !authData?.user) {
+        throw new Error("You must be signed in.");
+      }
+
       let profilePictureUrl = null;
       let videoUrl = null;
 
@@ -109,7 +120,7 @@ const ReviewStep: React.FC<ReviewStepProps> = ({ onNext, onPrev, data, updateDat
         videoUrl = await uploadViaFunction(videoFile, 'upload-video');
       }
 
-      // Prepare submission data
+      // Prepare submission data with user_id
       const submissionData = {
         full_name: data.fullName,
         email: data.email,
@@ -118,7 +129,8 @@ const ReviewStep: React.FC<ReviewStepProps> = ({ onNext, onPrev, data, updateDat
         profile_picture_url: profilePictureUrl,
         video_url: videoUrl,
         notes: data.notes,
-        is_published: false
+        is_published: false,
+        user_id: authData.user.id, // <--- IMPORTANT
       };
 
       console.log('Inserting submission data:', submissionData);

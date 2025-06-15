@@ -1,3 +1,4 @@
+
 import { useState, useRef, useCallback } from 'react';
 import { useIsMobile } from '@/hooks/use-mobile';
 import type { SubmissionData } from '@/pages/Index';
@@ -30,33 +31,46 @@ export const useRecording = ({ updateData, data }: UseRecordingProps) => {
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const animationRef = useRef<number | null>(null);
 
-  // Helper to process chunks into File for ultimate compatibility
+  // Helper to process chunks into Blob for preview
   const processRecordedBlob = useCallback((blob: Blob) => {
-    // Always create a File object, even if not directly used for uploads.
-    const videoFile = new File([blob], "video.webm", { type: "video/webm" });
-    // Force update both blob and File in SubmissionData for flow equivalence
+    console.log("[Recording] processRecordedBlob - blob size:", blob.size, "type:", blob.type);
+    
+    // Set the blob for immediate preview
     setRecordedBlob(blob);
+    
+    // Also create a File object for submission data
+    const videoFile = new File([blob], "video.webm", { type: blob.type });
     updateData({ videoBlob: videoFile });
-    console.log("[Recording] processRecordedBlob set videoBlob:", videoFile);
+    
+    console.log("[Recording] processRecordedBlob - created File:", videoFile.size, "bytes");
   }, [updateData]);
 
-  // FIX: Define mediaRecorderOnStop at the top level
+  // Define mediaRecorderOnStop at the top level
   const mediaRecorderOnStop = useCallback(() => {
+    console.log("[Recording] mediaRecorderOnStop - chunks:", chunksRef.current.length);
+    
     if (chunksRef.current.length > 0) {
       const blob = new Blob(chunksRef.current, { type: 'video/webm' });
+      console.log("[Recording] mediaRecorderOnStop - created blob:", blob.size, "bytes");
+      
       processRecordedBlob(blob);
+      
       if (videoRef.current) {
         videoRef.current.srcObject = null;
-        videoRef.current.src = URL.createObjectURL(blob);
       }
       if (pipVideoRef.current) {
         pipVideoRef.current.srcObject = null;
       }
+    } else {
+      console.error("[Recording] mediaRecorderOnStop - no chunks available");
     }
-  }, [processRecordedBlob, videoRef, pipVideoRef, chunksRef]);
+  }, [processRecordedBlob]);
 
   const stopRecording = useCallback(() => {
+    console.log("[Recording] stopRecording called");
+    
     if (mediaRecorderRef.current && isRecording) {
+      console.log("[Recording] stopping MediaRecorder");
       mediaRecorderRef.current.stop();
       setIsRecording(false);
       
@@ -235,7 +249,9 @@ export const useRecording = ({ updateData, data }: UseRecordingProps) => {
 
       const mimeType = MediaRecorder.isTypeSupported('video/webm;codecs=vp9') 
         ? 'video/webm;codecs=vp9' 
-        : 'video/mp4';
+        : 'video/webm';
+
+      console.log('[Recording] Using mimeType:', mimeType);
 
       const mediaRecorder = new MediaRecorder(finalStream, { mimeType });
 
@@ -243,15 +259,15 @@ export const useRecording = ({ updateData, data }: UseRecordingProps) => {
       chunksRef.current = [];
 
       mediaRecorder.ondataavailable = (event) => {
+        console.log('[Recording] Data available:', event.data.size, 'bytes');
         if (event.data.size > 0) {
           chunksRef.current.push(event.data);
         }
       };
 
-      // Use the correct, top-level callback for onstop
       mediaRecorder.onstop = mediaRecorderOnStop;
 
-      mediaRecorder.start();
+      mediaRecorder.start(1000); // Record in 1-second intervals
       setIsRecording(true);
       
       // Start timer
@@ -270,9 +286,10 @@ export const useRecording = ({ updateData, data }: UseRecordingProps) => {
       console.error('[Recording] Error starting recording:', err);
       setError('Could not access camera and/or screen. Please check your permissions.');
     }
-  }, [updateData, recordingMode, isMobile, cameraFacing, stopRecording, processRecordedBlob, mediaRecorderOnStop]);
+  }, [recordingMode, isMobile, cameraFacing, stopRecording, mediaRecorderOnStop]);
 
   const resetRecording = useCallback(() => {
+    console.log("[Recording] resetRecording called");
     setRecordedBlob(null);
     setRecordingTime(0);
     updateData({ videoBlob: undefined });
@@ -287,6 +304,7 @@ export const useRecording = ({ updateData, data }: UseRecordingProps) => {
   }, [updateData]);
 
   const playPreview = useCallback(() => {
+    console.log("[Recording] playPreview called");
     videoRef.current?.play();
   }, []);
 

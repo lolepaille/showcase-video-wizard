@@ -20,12 +20,13 @@ const VideoPreview: React.FC<VideoPreviewProps> = ({
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const [isLoaded, setIsLoaded] = useState(false);
+  const [loadError, setLoadError] = useState<string>('');
   const videoRef = useRef<HTMLVideoElement>(null);
   const videoUrl = useRef<string>('');
 
   useEffect(() => {
     if (videoBlob && videoRef.current) {
-      console.log('Setting up video preview with blob:', videoBlob);
+      console.log('VideoPreview: Setting up video with blob:', videoBlob.size, 'bytes, type:', videoBlob.type);
       
       // Clean up previous URL
       if (videoUrl.current) {
@@ -34,16 +35,20 @@ const VideoPreview: React.FC<VideoPreviewProps> = ({
       
       // Create new URL for the blob
       videoUrl.current = URL.createObjectURL(videoBlob);
-      console.log('Created video URL:', videoUrl.current);
+      console.log('VideoPreview: Created video URL:', videoUrl.current);
       
       const video = videoRef.current;
       video.src = videoUrl.current;
       
       // Reset states
       setIsLoaded(false);
+      setLoadError('');
       setCurrentTime(startTime);
       setDuration(0);
       setIsPlaying(false);
+      
+      // Force load
+      video.load();
     }
 
     return () => {
@@ -83,10 +88,11 @@ const VideoPreview: React.FC<VideoPreviewProps> = ({
   const handleLoadedMetadata = () => {
     if (videoRef.current) {
       const dur = videoRef.current.duration;
-      console.log('Video duration loaded:', dur);
+      console.log('VideoPreview: Video duration loaded:', dur);
       if (isFinite(dur) && dur > 0) {
         setDuration(dur);
         setIsLoaded(true);
+        setLoadError('');
         // Set initial time to start time
         videoRef.current.currentTime = startTime;
         setCurrentTime(startTime);
@@ -95,8 +101,16 @@ const VideoPreview: React.FC<VideoPreviewProps> = ({
   };
 
   const handleCanPlay = () => {
-    console.log('Video can play');
+    console.log('VideoPreview: Video can play');
     setIsLoaded(true);
+    setLoadError('');
+  };
+
+  const handleError = (e: React.SyntheticEvent<HTMLVideoElement, Event>) => {
+    const error = (e.target as HTMLVideoElement).error;
+    console.error('VideoPreview: Video error:', error);
+    setLoadError(`Failed to load video: ${error?.message || 'Unknown error'}`);
+    setIsLoaded(false);
   };
 
   const handleSliderChange = (value: number[]) => {
@@ -108,12 +122,12 @@ const VideoPreview: React.FC<VideoPreviewProps> = ({
   };
 
   const handlePlay = () => {
-    console.log('Video started playing');
+    console.log('VideoPreview: Video started playing');
     setIsPlaying(true);
   };
   
   const handlePause = () => {
-    console.log('Video paused');
+    console.log('VideoPreview: Video paused');
     setIsPlaying(false);
   };
 
@@ -167,16 +181,26 @@ const VideoPreview: React.FC<VideoPreviewProps> = ({
             onPlay={handlePlay}
             onPause={handlePause}
             onEnded={() => setIsPlaying(false)}
-            onError={(e) => console.error('Video error:', e)}
+            onError={handleError}
             preload="metadata"
             controls={false}
+            playsInline
           />
           
-          {!isLoaded && (
+          {!isLoaded && !loadError && (
             <div className="absolute inset-0 flex items-center justify-center bg-gray-900">
               <div className="text-center text-white">
                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-white mx-auto mb-2"></div>
                 <p>Loading video...</p>
+              </div>
+            </div>
+          )}
+          
+          {loadError && (
+            <div className="absolute inset-0 flex items-center justify-center bg-gray-900">
+              <div className="text-center text-white">
+                <p className="text-red-400 mb-2">Error loading video</p>
+                <p className="text-sm">{loadError}</p>
               </div>
             </div>
           )}

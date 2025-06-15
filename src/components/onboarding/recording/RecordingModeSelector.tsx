@@ -1,8 +1,10 @@
+
 import React from 'react';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Label } from '@/components/ui/label';
 import { Camera, Monitor, Presentation } from 'lucide-react';
-import { useIsMobile } from '@/hooks/use-mobile';
+// USE the improved real mobile detection
+import { useIsRealMobile } from '@/hooks/use-is-real-mobile';
 
 type RecordingMode = 'camera' | 'screen' | 'both';
 type CameraFacing = 'front' | 'back';
@@ -20,7 +22,7 @@ const RecordingModeSelector: React.FC<RecordingModeSelectorProps> = ({
   onRecordingModeChange,
   onCameraFacingChange
 }) => {
-  const isMobile = useIsMobile();
+  const isRealMobile = useIsRealMobile();
 
   // On mobile, show ONLY "Camera Only" and camera facing. Not screen or both.
   const availableModes: {
@@ -42,14 +44,14 @@ const RecordingModeSelector: React.FC<RecordingModeSelectorProps> = ({
       icon: <Monitor className="h-5 w-5" />,
       label: 'Screen Only',
       desc: 'Record your screen/presentation',
-      hide: isMobile, // hide on mobile
+      hide: isRealMobile, // hide on real mobile
     },
     {
       value: 'both',
       icon: <Presentation className="h-5 w-5" />,
       label: 'Screen + Camera',
       desc: 'Presentation with you in corner',
-      hide: isMobile, // hide on mobile
+      hide: isRealMobile, // hide on real mobile
     },
   ];
 
@@ -80,8 +82,8 @@ const RecordingModeSelector: React.FC<RecordingModeSelectorProps> = ({
           ))}
       </RadioGroup>
 
-      {/* Camera Facing Selector - on mobile only, and only show "Back" option if mobile */}
-      {isMobile && recordingMode === 'camera' && (
+      {/* Camera Facing Selector - on real mobile only, and only show "Back" option if on phone/tablet */}
+      {isRealMobile && recordingMode === 'camera' && (
         <div className="flex gap-4 items-center mt-3">
           <span className="text-sm font-medium">Camera Facing:</span>
           <RadioGroup
@@ -93,7 +95,6 @@ const RecordingModeSelector: React.FC<RecordingModeSelectorProps> = ({
               <RadioGroupItem value="front" id="front-facing" />
               <Label htmlFor="front-facing" className="cursor-pointer">Front</Label>
             </div>
-            {/* Only show back camera if device is mobile */}
             <div className="flex items-center space-x-2">
               <RadioGroupItem value="back" id="back-facing" />
               <Label htmlFor="back-facing" className="cursor-pointer">Back</Label>
@@ -101,8 +102,8 @@ const RecordingModeSelector: React.FC<RecordingModeSelectorProps> = ({
           </RadioGroup>
         </div>
       )}
-      {/* On desktop/larger screens, show facing if in camera or both */}
-      {!isMobile && (recordingMode === 'camera' || recordingMode === 'both') && (
+      {/* On desktop/larger screens (not real mobile), show facing only in camera or both modes */}
+      {!isRealMobile && (recordingMode === 'camera' || recordingMode === 'both') && (
         <div className="flex gap-4 items-center mt-3">
           <span className="text-sm font-medium">Camera Facing:</span>
           <RadioGroup
@@ -114,10 +115,7 @@ const RecordingModeSelector: React.FC<RecordingModeSelectorProps> = ({
               <RadioGroupItem value="front" id="front-facing" />
               <Label htmlFor="front-facing" className="cursor-pointer">Front</Label>
             </div>
-            <div className="flex items-center space-x-2">
-              <RadioGroupItem value="back" id="back-facing" />
-              <Label htmlFor="back-facing" className="cursor-pointer">Back</Label>
-            </div>
+            {/* Back camera not shown for desktop/laptop */}
           </RadioGroup>
         </div>
       )}

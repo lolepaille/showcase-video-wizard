@@ -1,4 +1,3 @@
-
 import { useState, useRef, useCallback } from 'react';
 import { useIsMobile } from '@/hooks/use-mobile';
 import type { SubmissionData } from '@/pages/Index';
@@ -224,19 +223,21 @@ export const useRecording = ({ updateData, data }: UseRecordingProps) => {
         }
       };
 
-      mediaRecorder.onstop = () => {
-        const blob = new Blob(chunksRef.current, { type: 'video/webm' });
-        setRecordedBlob(blob);
-        updateData({ videoBlob: blob });
-        
-        if (videoRef.current) {
-          videoRef.current.srcObject = null;
-          videoRef.current.src = URL.createObjectURL(blob);
+      const mediaRecorderOnStop = useCallback(() => {
+        if (chunksRef.current.length > 0) {
+          const blob = new Blob(chunksRef.current, { type: 'video/webm' });
+          processRecordedBlob(blob);
+          if (videoRef.current) {
+            videoRef.current.srcObject = null;
+            videoRef.current.src = URL.createObjectURL(blob);
+          }
+          if (pipVideoRef.current) {
+            pipVideoRef.current.srcObject = null;
+          }
         }
-        if (pipVideoRef.current) {
-          pipVideoRef.current.srcObject = null;
-        }
-      };
+      }, [processRecordedBlob, videoRef, pipVideoRef]);
+
+      mediaRecorder.onstop = mediaRecorderOnStop;
 
       mediaRecorder.start();
       setIsRecording(true);
@@ -258,6 +259,16 @@ export const useRecording = ({ updateData, data }: UseRecordingProps) => {
       setError('Could not access camera and/or screen. Please check your permissions.');
     }
   }, [updateData, recordingMode, isMobile, cameraFacing, stopRecording]);
+
+  // NEW: Helper to process chunks into File for ultimate compatibility
+  const processRecordedBlob = useCallback((blob: Blob) => {
+    // Always create a File object, even if not directly used for uploads.
+    const videoFile = new File([blob], "video.webm", { type: "video/webm" });
+    // Force update both blob and File in SubmissionData for flow equivalence
+    setRecordedBlob(blob);
+    updateData({ videoBlob: videoFile });
+    console.log("[Recording] processRecordedBlob set videoBlob:", videoFile);
+  }, [updateData]);
 
   const resetRecording = useCallback(() => {
     setRecordedBlob(null);

@@ -1,4 +1,3 @@
-
 import React, { useRef, useEffect } from 'react';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { Badge } from '@/components/ui/badge';
@@ -64,7 +63,19 @@ const VideoDialog: React.FC<VideoDialogProps> = ({
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-4xl w-full h-[80vh] p-0 relative overflow-hidden">
+      <DialogContent
+        className="
+          max-w-4xl 
+          w-full 
+          h-[80vh] 
+          p-0 
+          relative 
+          overflow-hidden
+          !top-10 !translate-y-0
+          sm:rounded-xl
+        "
+        style={{ maxWidth: "70vw", top: "2.5rem" }}
+      >
         {submission && (
           <div className="relative w-full h-full bg-black">
             {/* Profile Details at the Top */}
@@ -99,7 +110,6 @@ const VideoDialog: React.FC<VideoDialogProps> = ({
                 controls
                 autoPlay
                 className="w-full h-full object-contain"
-                // No trimming logic here; handled by useEffect
                 style={{ position: "absolute", top: 0, left: 0, width: "100%", height: "100%" }}
               />
             ) : (

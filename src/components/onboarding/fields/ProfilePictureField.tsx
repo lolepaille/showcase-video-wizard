@@ -1,5 +1,5 @@
 
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Upload } from "lucide-react";
@@ -11,6 +11,17 @@ interface Props {
 }
 
 const ProfilePictureField: React.FC<Props> = ({ profilePicture, updateData }) => {
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (profilePicture) {
+      const url = URL.createObjectURL(profilePicture);
+      setPreviewUrl(url);
+      return () => URL.revokeObjectURL(url);
+    }
+    setPreviewUrl(null);
+  }, [profilePicture]);
+
   const handleProfilePictureChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
@@ -33,6 +44,15 @@ const ProfilePictureField: React.FC<Props> = ({ profilePicture, updateData }) =>
       />
       {profilePicture && (
         <p className="text-sm text-green-600">✓ {profilePicture.name}</p>
+      )}
+      {previewUrl && (
+        <div className="mt-2 flex justify-center">
+          <img
+            src={previewUrl}
+            alt="Profile Preview"
+            className="w-28 h-28 rounded-full object-cover border border-gray-300 shadow"
+          />
+        </div>
       )}
     </div>
   );

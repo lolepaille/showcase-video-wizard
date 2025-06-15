@@ -1,5 +1,5 @@
 
-import React from 'react';
+import React, { useRef, useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Camera, Monitor, Presentation, AlertTriangle, RotateCw, Play, Square, RotateCcw } from 'lucide-react';
 
@@ -52,15 +52,51 @@ const VideoPreview: React.FC<VideoPreviewProps> = ({
 }) => {
   // Timer clamp
   const safeTime = Math.max(0, Math.min(recordingTime, 120));
-  const isActive = !!(cameraStream || screenStream || recordedBlob);
+  const isActive = !!(cameraStream || screenStream || (recordedBlob && !isRecording));
+
+  // Local state for playback of the recorded video
+  const [playUrl, setPlayUrl] = useState<string | null>(null);
+
+  // On recording done, switch videoRef from srcObject to blob URL
+  useEffect(() => {
+    if (videoRef.current) {
+      if (recordedBlob && !isRecording) {
+        // revoke previous
+        if (playUrl) URL.revokeObjectURL(playUrl);
+        const url = URL.createObjectURL(recordedBlob);
+        setPlayUrl(url);
+        videoRef.current.srcObject = null;
+        videoRef.current.src = url;
+        videoRef.current.muted = false; // allow audio on preview
+      } else if ((cameraStream || screenStream) && isRecording) {
+        // live, show stream
+        videoRef.current.srcObject = cameraStream || screenStream || null;
+        videoRef.current.src = '';
+        videoRef.current.muted = true;
+      } else {
+        // Not live and no blob, clear video
+        if (playUrl) URL.revokeObjectURL(playUrl);
+        setPlayUrl(null);
+        videoRef.current.srcObject = null;
+        videoRef.current.src = '';
+      }
+    }
+    // Cleanup blob URL on unmount or blob change
+    return () => {
+      if (playUrl) URL.revokeObjectURL(playUrl);
+    };
+    // do NOT include videoRef in deps, only run on changes
+    // eslint-disable-next-line
+  }, [recordedBlob, isRecording, cameraStream, screenStream]);
 
   return (
     <div className="relative bg-black rounded-lg overflow-hidden aspect-video max-w-2xl mx-auto">
       <video
         ref={videoRef}
-        autoPlay
+        autoPlay={isRecording}
         muted={isRecording}
         playsInline
+        controls={!!(recordedBlob && !isRecording)}
         className="w-full h-full object-cover"
       />
 
@@ -192,4 +228,3 @@ const VideoPreview: React.FC<VideoPreviewProps> = ({
 };
 
 export default VideoPreview;
-

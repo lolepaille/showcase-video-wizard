@@ -1,18 +1,15 @@
 
-import React, { useState, useRef } from 'react';
+import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { CheckCircle, Upload, AlertCircle, RefreshCcw } from 'lucide-react';
+import { CheckCircle, Upload, AlertCircle } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import SubmissionForm from './SubmissionForm';
 import type { SubmissionData, ClusterType } from '@/pages/Index';
 
-interface QualityChecked {
-  audioVisual: boolean;
-  questionsAddressed: boolean;
-  timeLimit: boolean;
-}
+import VideoReplaceSection from './VideoReplaceSection';
+import { useReviewQualityChecks } from './useReviewQualityChecks';
 
 interface ReviewStepProps {
   onNext: () => void;
@@ -23,27 +20,16 @@ interface ReviewStepProps {
 
 const ReviewStep: React.FC<ReviewStepProps> = ({ onNext, onPrev, data, updateData }) => {
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [qualityChecked, setQualityChecked] = useState<QualityChecked>({
-    audioVisual: false,
-    questionsAddressed: false,
-    timeLimit: false,
-  });
   const { toast } = useToast();
-
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  const { qualityChecked, handleQualityCheck, allChecked, setQualityChecked } = useReviewQualityChecks();
 
   const handleContactChange = (field: string, value: string | ClusterType) => {
     updateData({ [field]: value });
   };
 
-  const handleQualityCheck = (key: keyof QualityChecked, checked: boolean) => {
-    setQualityChecked(prev => ({ ...prev, [key]: checked }));
-  };
-
   const canSubmit = () => {
     const hasRequiredFields = data.fullName && data.email && data.cluster;
-    const hasAllChecks = Object.values(qualityChecked).every(Boolean);
-    return hasRequiredFields && hasAllChecks;
+    return hasRequiredFields && allChecked;
   };
 
   const uploadViaFunction = async (file: File, endpoint: string): Promise<string | null> => {
@@ -122,12 +108,10 @@ const ReviewStep: React.FC<ReviewStepProps> = ({ onNext, onPrev, data, updateDat
         video_url: videoUrl,
         notes: data.notes,
         is_published: false
-        // Removed: user_id (column doesn't exist)
       };
 
       console.log('Inserting submission data:', submissionData);
 
-      // Insert submission to database - no user_id
       const { data: insertedData, error: insertError } = await supabase
         .from('submissions')
         .insert(submissionData)
@@ -165,61 +149,9 @@ const ReviewStep: React.FC<ReviewStepProps> = ({ onNext, onPrev, data, updateDat
     }
   };
 
-  // Handler for when user chooses a replacement video file
-  const handleReplaceVideo = (evt: React.ChangeEvent<HTMLInputElement>) => {
-    const file = evt.target.files?.[0];
-    if (file) {
-      if (!file.type.startsWith("video/")) {
-        toast({
-          title: "Invalid file type",
-          description: "Please choose a video file.",
-          variant: "destructive"
-        });
-        return;
-      }
-      // Immediately update the videoBlob with the new File
-      updateData({ videoBlob: file });
-      toast({
-        title: "Video replaced",
-        description: "You have replaced your video.",
-      });
-    }
-    // Reset the value so the same file can be chosen again if needed
-    evt.target.value = "";
-  };
-
-  // Renders the video preview (with replace button if there is a videoBlob)
-  const renderVideoPreview = () => {
-    if (!data.videoBlob) return null;
-    return (
-      <div className="space-y-2">
-        <h3 className="text-lg font-semibold">Video Preview</h3>
-        <video
-          src={URL.createObjectURL(data.videoBlob)}
-          controls
-          className="w-full max-w-md rounded border"
-        />
-        <div>
-          <Button
-            type="button"
-            variant="outline"
-            size="sm"
-            className="mt-2"
-            onClick={() => fileInputRef.current?.click()}
-          >
-            <RefreshCcw className="h-4 w-4 mr-1" />
-            Replace Video
-          </Button>
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept="video/*"
-            className="hidden"
-            onChange={handleReplaceVideo}
-          />
-        </div>
-      </div>
-    );
+  // Use VideoReplaceSection for video preview and replacement
+  const handleVideoReplace = (file: File) => {
+    updateData({ videoBlob: file });
   };
 
   return (
@@ -231,8 +163,7 @@ const ReviewStep: React.FC<ReviewStepProps> = ({ onNext, onPrev, data, updateDat
         onQualityCheck={handleQualityCheck}
       />
 
-      {/* Render video replace below the regular SubmissionForm video preview */}
-      {renderVideoPreview()}
+      <VideoReplaceSection videoBlob={data.videoBlob} onReplace={handleVideoReplace} />
 
       <div className="flex justify-between items-center">
         <Button variant="outline" onClick={onPrev} disabled={isSubmitting}>
@@ -276,5 +207,3 @@ const ReviewStep: React.FC<ReviewStepProps> = ({ onNext, onPrev, data, updateDat
 };
 
 export default ReviewStep;
-
-// NOTE: src/components/onboarding/ReviewStep.tsx is long. Consider asking me to refactor!

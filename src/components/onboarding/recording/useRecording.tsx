@@ -209,6 +209,9 @@ export const useRecording = ({ updateData, data }: UseRecordingProps) => {
           pipVideoRef.current.srcObject = cameraStreamLocal;
         }
 
+        // *** FIX: set isRecording true BEFORE starting animation loop ***
+        setIsRecording(true);
+
         // Composite the streams
         const drawFrame = () => {
           // Draw screen capture
@@ -227,11 +230,12 @@ export const useRecording = ({ updateData, data }: UseRecordingProps) => {
             pipHeight
           );
           
-          if (isRecording) {
+          if (isRecording || animationRef.current !== null) {
             animationRef.current = requestAnimationFrame(drawFrame);
           }
         };
         
+        // Start compositing loop (now that isRecording is true)
         drawFrame();
         finalStream = canvas.captureStream(30);
         
@@ -268,9 +272,7 @@ export const useRecording = ({ updateData, data }: UseRecordingProps) => {
       mediaRecorder.onstop = mediaRecorderOnStop;
 
       mediaRecorder.start(1000); // Record in 1-second intervals
-      setIsRecording(true);
-      
-      // Start timer
+      // Timer and recordingTime logic
       setRecordingTime(0);
       timerRef.current = setInterval(() => {
         setRecordingTime(prev => {
@@ -281,6 +283,11 @@ export const useRecording = ({ updateData, data }: UseRecordingProps) => {
           return prev + 1;
         });
       }, 1000);
+
+      // For camera/screen only, set isRecording true here as before
+      if (recordingMode === 'camera' || recordingMode === 'screen') {
+        setIsRecording(true);
+      }
 
     } catch (err) {
       console.error('[Recording] Error starting recording:', err);

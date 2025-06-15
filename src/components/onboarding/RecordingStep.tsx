@@ -16,6 +16,7 @@ interface RecordingStepProps {
 }
 
 type RecordingMode = 'camera' | 'screen' | 'both';
+type CameraFacing = 'front' | 'back';
 
 const RecordingStep: React.FC<RecordingStepProps> = ({ onNext, onPrev, data, updateData }) => {
   console.log('[RecordingStep] Component initialized with data:', data);
@@ -28,6 +29,7 @@ const RecordingStep: React.FC<RecordingStepProps> = ({ onNext, onPrev, data, upd
   const [screenStream, setScreenStream] = useState<MediaStream | null>(null);
   const [error, setError] = useState<string>('');
   const [showRotateOverlay, setShowRotateOverlay] = useState(false);
+  const [cameraFacing, setCameraFacing] = useState<CameraFacing>('front');
   const isMobile = useIsMobile();
   
   console.log('[RecordingStep] State initialized - isMobile:', isMobile, 'recordingMode:', recordingMode);
@@ -42,7 +44,7 @@ const RecordingStep: React.FC<RecordingStepProps> = ({ onNext, onPrev, data, upd
 
   const startRecording = useCallback(async () => {
     try {
-      console.log('[RecordingStep] Starting recording with mode:', recordingMode);
+      console.log('[RecordingStep] Starting recording with mode:', recordingMode, 'cameraFacing:', cameraFacing);
       setError('');
       setShowRotateOverlay(false);
       let finalStream: MediaStream | null = null;
@@ -54,7 +56,7 @@ const RecordingStep: React.FC<RecordingStepProps> = ({ onNext, onPrev, data, upd
           video: {
             width: { ideal: 1280 },
             height: { ideal: 720 },
-            facingMode: 'user'
+            facingMode: cameraFacing === 'front' ? 'user' : { exact: 'environment' }
           },
           audio: {
             echoCancellation: true,
@@ -113,7 +115,7 @@ const RecordingStep: React.FC<RecordingStepProps> = ({ onNext, onPrev, data, upd
             video: {
               width: { ideal: 320 },
               height: { ideal: 240 },
-              facingMode: 'user'
+              facingMode: cameraFacing === 'front' ? 'user' : { exact: 'environment' }
             },
             audio: {
               echoCancellation: true,
@@ -252,7 +254,7 @@ const RecordingStep: React.FC<RecordingStepProps> = ({ onNext, onPrev, data, upd
       console.error('[RecordingStep] Error starting recording:', err);
       setError('Could not access camera and/or screen. Please check your permissions.');
     }
-  }, [updateData, recordingMode, isMobile]);
+  }, [updateData, recordingMode, isMobile, cameraFacing, stopRecording]);
 
   const stopRecording = useCallback(() => {
     if (mediaRecorderRef.current && isRecording) {
@@ -360,6 +362,26 @@ const RecordingStep: React.FC<RecordingStepProps> = ({ onNext, onPrev, data, upd
                   </Label>
                 </div>
               </RadioGroup>
+              {/* Camera Facing Selector */}
+              {(recordingMode === 'camera' || recordingMode === 'both') && (
+                <div className="flex gap-4 items-center mt-3">
+                  <span className="text-sm font-medium">Camera Facing:</span>
+                  <RadioGroup 
+                    value={cameraFacing}
+                    onValueChange={(val) => setCameraFacing(val as CameraFacing)}
+                    className="flex gap-2"
+                  >
+                    <div className="flex items-center space-x-2">
+                      <RadioGroupItem value="front" id="front-facing" />
+                      <Label htmlFor="front-facing" className="cursor-pointer">Front</Label>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <RadioGroupItem value="back" id="back-facing" />
+                      <Label htmlFor="back-facing" className="cursor-pointer">Back</Label>
+                    </div>
+                  </RadioGroup>
+                </div>
+              )}
             </div>
           )}
 

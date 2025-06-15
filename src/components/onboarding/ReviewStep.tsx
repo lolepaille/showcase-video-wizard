@@ -191,14 +191,18 @@ const ReviewStep: React.FC<ReviewStepProps> = ({ onNext, onPrev, data, updateDat
 
   const onLoadedMetadata = () => {
     if (videoRef.current) {
-      setDuration(videoRef.current.duration || 0);
-      setIsLoaded(true);
+      // Only set if safe and finite!
+      const dur = videoRef.current.duration;
+      setDuration(Number.isFinite(dur) ? dur : 0);
+      setIsLoaded(Number.isFinite(dur) && dur > 0);
+      setCurrentTime(0);
     }
   };
   const onTimeUpdate = () => {
     if (videoRef.current) {
-      setCurrentTime(videoRef.current.currentTime);
-      if (videoRef.current.currentTime >= duration && duration > 0) {
+      const cTime = videoRef.current.currentTime;
+      setCurrentTime(Number.isFinite(cTime) ? cTime : 0);
+      if (Number.isFinite(duration) && cTime >= duration && duration > 0) {
         setIsPlaying(false);
       }
     }
@@ -213,15 +217,18 @@ const ReviewStep: React.FC<ReviewStepProps> = ({ onNext, onPrev, data, updateDat
   };
   const handleSliderChange = (v: number[]) => {
     if (videoRef.current && isLoaded) {
-      videoRef.current.currentTime = v[0];
-      setCurrentTime(v[0]);
+      const sliderVal = Array.isArray(v) && Number.isFinite(v[0]) ? v[0] : 0;
+      if (Number.isFinite(sliderVal) && sliderVal >= 0 && sliderVal <= duration) {
+        videoRef.current.currentTime = sliderVal;
+        setCurrentTime(sliderVal);
+      }
     }
   };
   const onPlay = () => setIsPlaying(true);
   const onPause = () => setIsPlaying(false);
 
   const formatTime = (time: number) => {
-    if (!isFinite(time) || time < 0) return '0:00';
+    if (!Number.isFinite(time) || time < 0) return '0:00';
     const minutes = Math.floor(time / 60);
     const seconds = Math.floor(time % 60);
     return `${minutes}:${seconds.toString().padStart(2, '0')}`;
@@ -243,7 +250,7 @@ const ReviewStep: React.FC<ReviewStepProps> = ({ onNext, onPrev, data, updateDat
         onQualityCheck={handleQualityCheck}
         hideVideoPreview={true}
       >
-        {/* Only show custom video preview with controls if videoBlob exists */}
+        {/* Video Preview section: show only if videoBlob exists */}
         {data.videoBlob && (
           <div className="space-y-4 mt-2">
             <div className="space-y-2">
@@ -284,14 +291,33 @@ const ReviewStep: React.FC<ReviewStepProps> = ({ onNext, onPrev, data, updateDat
               </div>
               {/* Controls row */}
               <div className="flex flex-col items-center gap-3 mt-2 max-w-2xl mx-auto px-2">
-                {/* Play/Pause + Replace */}
-                <div className="flex justify-center items-center gap-3 w-full">
+                {/* Slider */}
+                <div className="w-full flex items-center gap-3 justify-center max-w-xl">
+                  <span className="text-muted-foreground text-sm min-w-[45px] text-center">
+                    {formatTime(currentTime)}
+                  </span>
+                  <Slider
+                    min={0}
+                    max={duration > 0 ? duration : 1}
+                    step={0.05}
+                    value={[Math.min(Math.max(currentTime, 0), duration > 0 ? duration : 1)]}
+                    onValueChange={handleSliderChange}
+                    disabled={!isLoaded || !(duration > 0)}
+                    className="flex-1"
+                  />
+                  <span className="text-muted-foreground text-sm min-w-[45px] text-center">
+                    {formatTime(duration)}
+                  </span>
+                </div>
+                {/* Play/Pause + Replace, centered */}
+                <div className="flex justify-center items-center gap-3 w-full mt-1">
                   <Button
                     variant="outline"
                     size="sm"
                     onClick={handlePlayPause}
                     disabled={!isLoaded}
                     className="flex items-center gap-2"
+                    type="button"
                   >
                     {isPlaying ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
                     {isPlaying ? "Pause" : "Play"}
@@ -306,20 +332,6 @@ const ReviewStep: React.FC<ReviewStepProps> = ({ onNext, onPrev, data, updateDat
                     <Replace className="h-4 w-4" />
                     Replace Video
                   </Button>
-                  <span className="text-muted-foreground text-sm ml-3">
-                    {formatTime(currentTime)} / {formatTime(duration)}
-                  </span>
-                </div>
-                {/* Slider */}
-                <div className="w-full max-w-xl">
-                  <Slider
-                    min={0}
-                    max={duration || 1}
-                    step={0.05}
-                    value={[Math.min(currentTime, duration)]}
-                    onValueChange={handleSliderChange}
-                    disabled={!isLoaded}
-                  />
                 </div>
               </div>
             </div>

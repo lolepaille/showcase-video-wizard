@@ -1,12 +1,15 @@
-import React, { useState, useRef, useCallback } from 'react';
+
+import React from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
-import { Label } from '@/components/ui/label';
-import { Play, Square, RotateCcw, CheckCircle2, Camera, Mic, Monitor, Presentation, RotateCw, AlertTriangle } from 'lucide-react';
+import { CheckCircle2 } from 'lucide-react';
 import type { SubmissionData } from '@/pages/Index';
-import { useIsMobile } from '@/hooks/use-mobile';
+import { useRecording } from './recording/useRecording';
+import RecordingModeSelector from './recording/RecordingModeSelector';
+import VideoPreview from './recording/VideoPreview';
+import RecordingControls from './recording/RecordingControls';
+import RecordingTips from './recording/RecordingTips';
 
 interface RecordingStepProps {
   onNext: () => void;
@@ -15,295 +18,34 @@ interface RecordingStepProps {
   updateData: (data: Partial<SubmissionData>) => void;
 }
 
-type RecordingMode = 'camera' | 'screen' | 'both';
-type CameraFacing = 'front' | 'back';
-
 const RecordingStep: React.FC<RecordingStepProps> = ({ onNext, onPrev, data, updateData }) => {
-  console.log('[RecordingStep] Component initialized with data:', data);
-  
-  const [isRecording, setIsRecording] = useState(false);
-  const [recordedBlob, setRecordedBlob] = useState<Blob | null>(data.videoBlob || null);
-  const [recordingTime, setRecordingTime] = useState(0);
-  const [recordingMode, setRecordingMode] = useState<RecordingMode>('camera');
-  const [cameraStream, setCameraStream] = useState<MediaStream | null>(null);
-  const [screenStream, setScreenStream] = useState<MediaStream | null>(null);
-  const [error, setError] = useState<string>('');
-  const [showRotateOverlay, setShowRotateOverlay] = useState(false);
-  const [cameraFacing, setCameraFacing] = useState<CameraFacing>('front');
-  const isMobile = useIsMobile();
-  
-  console.log('[RecordingStep] State initialized - isMobile:', isMobile, 'recordingMode:', recordingMode);
-  
-  const videoRef = useRef<HTMLVideoElement>(null);
-  const pipVideoRef = useRef<HTMLVideoElement>(null);
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
-  const chunksRef = useRef<Blob[]>([]);
-  const timerRef = useRef<NodeJS.Timeout | null>(null);
-  const animationRef = useRef<number | null>(null);
-
-  const stopRecording = useCallback(() => {
-    if (mediaRecorderRef.current && isRecording) {
-      mediaRecorderRef.current.stop();
-      setIsRecording(false);
-      
-      if (timerRef.current) {
-        clearInterval(timerRef.current);
-        timerRef.current = null;
-      }
-      
-      if (animationRef.current) {
-        cancelAnimationFrame(animationRef.current);
-        animationRef.current = null;
-      }
-      
-      // Stop all streams
-      [cameraStream, screenStream].forEach(stream => {
-        if (stream) {
-          stream.getTracks().forEach(track => track.stop());
-        }
-      });
-      
-      setCameraStream(null);
-      setScreenStream(null);
-    }
-  }, [isRecording, cameraStream, screenStream]);
-
-  const startRecording = useCallback(async () => {
-    try {
-      console.log('[RecordingStep] Starting recording with mode:', recordingMode, 'cameraFacing:', cameraFacing);
-      setError('');
-      setShowRotateOverlay(false);
-      let finalStream: MediaStream | null = null;
-
-      if (recordingMode === 'camera') {
-        console.log('[RecordingStep] Requesting camera access...');
-        // Camera only recording
-        const mediaStream = await navigator.mediaDevices.getUserMedia({
-          video: {
-            width: { ideal: 1280 },
-            height: { ideal: 720 },
-            facingMode: cameraFacing === 'front' ? 'user' : { exact: 'environment' }
-          },
-          audio: {
-            echoCancellation: true,
-            noiseSuppression: true
-          }
-        });
-
-        const videoTrack = mediaStream.getVideoTracks()[0];
-        console.log('[RecordingStep] Camera stream obtained, checking orientation...');
-        if (isMobile && videoTrack) {
-          const settings = videoTrack.getSettings();
-          console.log('[RecordingStep] Video settings:', settings);
-          if (settings.width && settings.height && settings.height > settings.width) {
-            console.log('[RecordingStep] Portrait mode detected, showing rotate overlay');
-            setShowRotateOverlay(true);
-            mediaStream.getTracks().forEach(track => track.stop());
-            return;
-          }
-        }
-        
-        setCameraStream(mediaStream);
-        finalStream = mediaStream;
-        
-        if (videoRef.current) {
-          videoRef.current.srcObject = mediaStream;
-        }
-      } else if (recordingMode === 'screen') {
-        console.log('[RecordingStep] Requesting screen capture...');
-        // Screen only recording
-        const displayStream = await navigator.mediaDevices.getDisplayMedia({
-          video: {
-            width: { ideal: 1920 },
-            height: { ideal: 1080 }
-          },
-          audio: true
-        });
-        
-        setScreenStream(displayStream);
-        finalStream = displayStream;
-        
-        if (videoRef.current) {
-          videoRef.current.srcObject = displayStream;
-        }
-      } else if (recordingMode === 'both') {
-        console.log('[RecordingStep] Requesting both camera and screen...');
-        // Picture-in-picture recording (screen + camera)
-        const [displayStream, cameraStreamLocal] = await Promise.all([
-          navigator.mediaDevices.getDisplayMedia({
-            video: {
-              width: { ideal: 1920 },
-              height: { ideal: 1080 }
-            },
-            audio: true
-          }),
-          navigator.mediaDevices.getUserMedia({
-            video: {
-              width: { ideal: 320 },
-              height: { ideal: 240 },
-              facingMode: cameraFacing === 'front' ? 'user' : { exact: 'environment' }
-            },
-            audio: {
-              echoCancellation: true,
-              noiseSuppression: true
-            }
-          })
-        ]);
-
-        const cameraVideoTrack = cameraStreamLocal.getVideoTracks()[0];
-        if (isMobile && cameraVideoTrack) {
-          const settings = cameraVideoTrack.getSettings();
-          console.log('[RecordingStep] Camera settings in both mode:', settings);
-          if (settings.width && settings.height && settings.height > settings.width) {
-            console.log('[RecordingStep] Portrait mode detected in both mode, showing rotate overlay');
-            setShowRotateOverlay(true);
-            displayStream.getTracks().forEach(track => track.stop());
-            cameraStreamLocal.getTracks().forEach(track => track.stop());
-            return;
-          }
-        }
-
-        setScreenStream(displayStream);
-        setCameraStream(cameraStreamLocal);
-
-        // Set up canvas for compositing
-        const canvas = canvasRef.current!;
-        const ctx = canvas.getContext('2d')!;
-        canvas.width = 1920;
-        canvas.height = 1080;
-
-        // Create video elements for compositing
-        const screenVideo = document.createElement('video');
-        const cameraVideo = document.createElement('video');
-        
-        screenVideo.srcObject = displayStream;
-        cameraVideo.srcObject = cameraStreamLocal;
-        
-        await Promise.all([
-          new Promise(resolve => { screenVideo.onloadedmetadata = resolve; screenVideo.play(); }),
-          new Promise(resolve => { cameraVideo.onloadedmetadata = resolve; cameraVideo.play(); })
-        ]);
-
-        // Set up PiP preview
-        if (videoRef.current) {
-          videoRef.current.srcObject = displayStream;
-        }
-        if (pipVideoRef.current) {
-          pipVideoRef.current.srcObject = cameraStreamLocal;
-        }
-
-        // Composite the streams
-        const drawFrame = () => {
-          // Draw screen capture
-          ctx.drawImage(screenVideo, 0, 0, canvas.width, canvas.height);
-          
-          // Draw camera in corner (320x240 at bottom-right with 20px margin)
-          const pipWidth = 320;
-          const pipHeight = 240;
-          const margin = 20;
-          
-          ctx.drawImage(
-            cameraVideo,
-            canvas.width - pipWidth - margin,
-            canvas.height - pipHeight - margin,
-            pipWidth,
-            pipHeight
-          );
-          
-          if (isRecording) {
-            animationRef.current = requestAnimationFrame(drawFrame);
-          }
-        };
-        
-        drawFrame();
-        finalStream = canvas.captureStream(30);
-        
-        // Add audio from both streams
-        const audioTracks = [
-          ...displayStream.getAudioTracks(),
-          ...cameraStreamLocal.getAudioTracks()
-        ];
-        audioTracks.forEach(track => finalStream!.addTrack(track));
-      }
-
-      if (!finalStream) {
-        console.log('[RecordingStep] No final stream available');
-        return;
-      }
-
-      console.log('[RecordingStep] Setting up MediaRecorder...');
-      const mimeType = MediaRecorder.isTypeSupported('video/webm;codecs=vp9') 
-        ? 'video/webm;codecs=vp9' 
-        : 'video/mp4';
-
-      const mediaRecorder = new MediaRecorder(finalStream, { mimeType });
-
-      mediaRecorderRef.current = mediaRecorder;
-      chunksRef.current = [];
-
-      mediaRecorder.ondataavailable = (event) => {
-        if (event.data.size > 0) {
-          chunksRef.current.push(event.data);
-        }
-      };
-
-      mediaRecorder.onstop = () => {
-        const blob = new Blob(chunksRef.current, { type: 'video/webm' });
-        setRecordedBlob(blob);
-        updateData({ videoBlob: blob });
-        
-        if (videoRef.current) {
-          videoRef.current.srcObject = null;
-          videoRef.current.src = URL.createObjectURL(blob);
-        }
-        if (pipVideoRef.current) {
-          pipVideoRef.current.srcObject = null;
-        }
-      };
-
-      mediaRecorder.start();
-      setIsRecording(true);
-      
-      // Start timer
-      setRecordingTime(0);
-      timerRef.current = setInterval(() => {
-        setRecordingTime(prev => {
-          if (prev >= 120) { // 2 minutes max
-            stopRecording();
-            return 120;
-          }
-          return prev + 1;
-        });
-      }, 1000);
-
-    } catch (err) {
-      console.error('[RecordingStep] Error starting recording:', err);
-      setError('Could not access camera and/or screen. Please check your permissions.');
-    }
-  }, [updateData, recordingMode, isMobile, cameraFacing, stopRecording]);
-
-  const resetRecording = useCallback(() => {
-    setRecordedBlob(null);
-    setRecordingTime(0);
-    updateData({ videoBlob: undefined });
-    
-    if (videoRef.current) {
-      videoRef.current.src = '';
-      videoRef.current.srcObject = null;
-    }
-    if (pipVideoRef.current) {
-      pipVideoRef.current.srcObject = null;
-    }
-  }, [updateData]);
+  const {
+    isRecording,
+    recordedBlob,
+    recordingTime,
+    recordingMode,
+    cameraStream,
+    screenStream,
+    error,
+    showRotateOverlay,
+    cameraFacing,
+    videoRef,
+    pipVideoRef,
+    canvasRef,
+    startRecording,
+    stopRecording,
+    resetRecording,
+    playPreview,
+    setRecordingMode,
+    setCameraFacing,
+    setShowRotateOverlay
+  } = useRecording({ updateData, data });
 
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60);
     const secs = seconds % 60;
     return `${mins}:${secs.toString().padStart(2, '0')}`;
   };
-
-  console.log('[RecordingStep] Rendering component - showRotateOverlay:', showRotateOverlay, 'error:', error);
 
   return (
     <div className="max-w-4xl mx-auto">
@@ -324,193 +66,42 @@ const RecordingStep: React.FC<RecordingStepProps> = ({ onNext, onPrev, data, upd
 
           {/* Recording Mode Selection */}
           {!isRecording && !recordedBlob && (
-            <div className="space-y-4">
-              <h3 className="text-lg font-semibold">Choose Recording Mode</h3>
-              <RadioGroup 
-                value={recordingMode} 
-                onValueChange={(value) => setRecordingMode(value as RecordingMode)}
-                className="grid grid-cols-1 md:grid-cols-3 gap-4"
-              >
-                <div className="flex items-center space-x-2 p-4 border rounded-lg hover:bg-gray-50">
-                  <RadioGroupItem value="camera" id="camera" />
-                  <Label htmlFor="camera" className="flex items-center gap-2 cursor-pointer">
-                    <Camera className="h-5 w-5" />
-                    <div>
-                      <div className="font-medium">Camera Only</div>
-                      <div className="text-sm text-muted-foreground">Traditional video recording</div>
-                    </div>
-                  </Label>
-                </div>
-                <div className="flex items-center space-x-2 p-4 border rounded-lg hover:bg-gray-50">
-                  <RadioGroupItem value="screen" id="screen" />
-                  <Label htmlFor="screen" className="flex items-center gap-2 cursor-pointer">
-                    <Monitor className="h-5 w-5" />
-                    <div>
-                      <div className="font-medium">Screen Only</div>
-                      <div className="text-sm text-muted-foreground">Record your screen/presentation</div>
-                    </div>
-                  </Label>
-                </div>
-                <div className="flex items-center space-x-2 p-4 border rounded-lg hover:bg-gray-50">
-                  <RadioGroupItem value="both" id="both" />
-                  <Label htmlFor="both" className="flex items-center gap-2 cursor-pointer">
-                    <Presentation className="h-5 w-5" />
-                    <div>
-                      <div className="font-medium">Screen + Camera</div>
-                      <div className="text-sm text-muted-foreground">Presentation with you in corner</div>
-                    </div>
-                  </Label>
-                </div>
-              </RadioGroup>
-              {/* Camera Facing Selector */}
-              {(recordingMode === 'camera' || recordingMode === 'both') && (
-                <div className="flex gap-4 items-center mt-3">
-                  <span className="text-sm font-medium">Camera Facing:</span>
-                  <RadioGroup 
-                    value={cameraFacing}
-                    onValueChange={(val) => setCameraFacing(val as CameraFacing)}
-                    className="flex gap-2"
-                  >
-                    <div className="flex items-center space-x-2">
-                      <RadioGroupItem value="front" id="front-facing" />
-                      <Label htmlFor="front-facing" className="cursor-pointer">Front</Label>
-                    </div>
-                    <div className="flex items-center space-x-2">
-                      <RadioGroupItem value="back" id="back-facing" />
-                      <Label htmlFor="back-facing" className="cursor-pointer">Back</Label>
-                    </div>
-                  </RadioGroup>
-                </div>
-              )}
-            </div>
+            <RecordingModeSelector
+              recordingMode={recordingMode}
+              cameraFacing={cameraFacing}
+              onRecordingModeChange={setRecordingMode}
+              onCameraFacingChange={setCameraFacing}
+            />
           )}
 
           {/* Video Preview Area */}
-          <div className="relative bg-black rounded-lg overflow-hidden aspect-video max-w-2xl mx-auto">
-            <video
-              ref={videoRef}
-              autoPlay
-              muted={isRecording}
-              playsInline
-              className="w-full h-full object-cover"
-            />
-            
-            {/* Picture-in-Picture overlay for camera when recording both */}
-            {recordingMode === 'both' && (cameraStream || isRecording) && (
-              <div className="absolute bottom-4 right-4 w-32 h-24 border-2 border-white rounded-lg overflow-hidden">
-                <video
-                  ref={pipVideoRef}
-                  autoPlay
-                  muted
-                  playsInline
-                  className="w-full h-full object-cover"
-                />
-              </div>
-            )}
-
-            {/* Rotate Device Overlay */}
-            {showRotateOverlay && (
-              <div className="absolute inset-0 bg-black/90 flex items-center justify-center z-10">
-                <div className="text-center text-white p-8">
-                  <div className="flex justify-center mb-6">
-                    <div className="relative">
-                      <AlertTriangle className="h-16 w-16 text-amber-400 animate-pulse" />
-                      <RotateCw className="h-8 w-8 text-white absolute -bottom-2 -right-2 animate-spin" />
-                    </div>
-                  </div>
-                  <h3 className="text-2xl font-bold mb-4">Rotate Your Device</h3>
-                  <p className="text-lg mb-6 max-w-sm">
-                    Please rotate your device to landscape mode for the best recording experience.
-                  </p>
-                  <Button 
-                    onClick={() => setShowRotateOverlay(false)}
-                    variant="outline"
-                    className="bg-white/10 border-white/20 text-white hover:bg-white/20"
-                  >
-                    I'll try again
-                  </Button>
-                </div>
-              </div>
-            )}
-            
-            {!cameraStream && !screenStream && !recordedBlob && !showRotateOverlay && (
-              <div className="absolute inset-0 flex items-center justify-center bg-gray-900">
-                <div className="text-center text-white">
-                  {recordingMode === 'camera' && <Camera className="h-12 w-12 mx-auto mb-4 opacity-50" />}
-                  {recordingMode === 'screen' && <Monitor className="h-12 w-12 mx-auto mb-4 opacity-50" />}
-                  {recordingMode === 'both' && <Presentation className="h-12 w-12 mx-auto mb-4 opacity-50" />}
-                  <p className="text-lg">Click "Start Recording" to begin</p>
-                </div>
-              </div>
-            )}
-
-            {isRecording && (
-              <div className="absolute top-4 left-4 bg-red-600 text-white px-3 py-1 rounded-full flex items-center gap-2">
-                <div className="w-2 h-2 bg-white rounded-full animate-pulse" />
-                <span className="font-mono font-bold">{formatTime(recordingTime)}</span>
-              </div>
-            )}
-
-            {isRecording && recordingTime >= 110 && (
-              <div className="absolute bottom-4 left-4 right-4 bg-amber-600 text-white px-3 py-2 rounded text-center">
-                <span className="font-medium">10 seconds remaining!</span>
-              </div>
-            )}
-          </div>
+          <VideoPreview
+            videoRef={videoRef}
+            pipVideoRef={pipVideoRef}
+            recordingMode={recordingMode}
+            cameraStream={cameraStream}
+            screenStream={screenStream}
+            recordedBlob={recordedBlob}
+            isRecording={isRecording}
+            recordingTime={recordingTime}
+            showRotateOverlay={showRotateOverlay}
+            onRotateOverlayClose={() => setShowRotateOverlay(false)}
+          />
 
           {/* Hidden canvas for compositing */}
           <canvas ref={canvasRef} className="hidden" />
 
           {/* Recording Controls */}
-          <div className="flex justify-center gap-4">
-            {!isRecording && !recordedBlob && !showRotateOverlay && (
-              <Button
-                onClick={startRecording}
-                size="lg"
-                className="bg-red-600 hover:bg-red-700 text-white px-8"
-              >
-                {recordingMode === 'camera' && <Camera className="h-5 w-5 mr-2" />}
-                {recordingMode === 'screen' && <Monitor className="h-5 w-5 mr-2" />}
-                {recordingMode === 'both' && <Presentation className="h-5 w-5 mr-2" />}
-                Start Recording
-              </Button>
-            )}
-
-            {isRecording && (
-              <Button
-                onClick={stopRecording}
-                size="lg"
-                variant="outline"
-                className="border-red-600 text-red-600 hover:bg-red-50 px-8"
-              >
-                <Square className="h-5 w-5 mr-2" />
-                Stop Recording
-              </Button>
-            )}
-
-            {recordedBlob && !isRecording && (
-              <div className="flex gap-4">
-                <Button
-                  onClick={() => videoRef.current?.play()}
-                  size="lg"
-                  variant="outline"
-                  className="px-6"
-                >
-                  <Play className="h-5 w-5 mr-2" />
-                  Preview
-                </Button>
-                <Button
-                  onClick={resetRecording}
-                  size="lg"
-                  variant="outline"
-                  className="px-6"
-                >
-                  <RotateCcw className="h-5 w-5 mr-2" />
-                  Re-record
-                </Button>
-              </div>
-            )}
-          </div>
+          <RecordingControls
+            isRecording={isRecording}
+            recordedBlob={recordedBlob}
+            recordingMode={recordingMode}
+            showRotateOverlay={showRotateOverlay}
+            onStartRecording={startRecording}
+            onStopRecording={stopRecording}
+            onPlayPreview={playPreview}
+            onResetRecording={resetRecording}
+          />
 
           {recordedBlob && (
             <div className="bg-green-50 border border-green-200 rounded-lg p-4">
@@ -526,21 +117,7 @@ const RecordingStep: React.FC<RecordingStepProps> = ({ onNext, onPrev, data, upd
             </div>
           )}
 
-          <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-            <div className="flex items-start gap-3">
-              <Mic className="h-5 w-5 text-blue-600 mt-0.5" />
-              <div>
-                <h4 className="font-medium text-blue-800 mb-2">Recording Tips:</h4>
-                <ul className="text-sm text-blue-700 space-y-1">
-                  <li>• <strong>Camera:</strong> Traditional face-to-face recording</li>
-                  <li>• <strong>Screen:</strong> Perfect for presentations and demos</li>
-                  <li>• <strong>Both:</strong> Present with your face in the corner</li>
-                  <li>• Maximum recording time is 2 minutes</li>
-                  <li>• Your video can be trimmed by admins during review</li>
-                </ul>
-              </div>
-            </div>
-          </div>
+          <RecordingTips />
 
           <div className="flex justify-between pt-4">
             <Button variant="outline" onClick={onPrev} className="px-8">

@@ -1,12 +1,11 @@
-
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
-import { CheckCircle, Upload, AlertCircle, Play, Replace } from 'lucide-react';
+import { CheckCircle, Upload, AlertCircle, Play, Pause, Clock, Replace } from 'lucide-react';
+import { Slider } from '@/components/ui/slider';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import SubmissionForm from './SubmissionForm';
 import type { SubmissionData, ClusterType } from '@/pages/Index';
-import VideoPreview from './VideoPreview';
 
 interface QualityChecked {
   audioVisual: boolean;
@@ -158,7 +157,76 @@ const ReviewStep: React.FC<ReviewStepProps> = ({ onNext, onPrev, data, updateDat
     }
   };
 
-  // Replace video handler
+  // ---- Custom Video Player State ----
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [currentTime, setCurrentTime] = useState(0);
+  const [duration, setDuration] = useState(0);
+  const [isLoaded, setIsLoaded] = useState(false);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const videoUrl = useRef<string>('');
+
+  // Setup video blob on mount/change
+  useEffect(() => {
+    setIsPlaying(false);
+    setCurrentTime(0);
+    setDuration(0);
+    setIsLoaded(false);
+    if (data.videoBlob) {
+      // Clean up previous URL
+      if (videoUrl.current) {
+        URL.revokeObjectURL(videoUrl.current);
+      }
+      videoUrl.current = URL.createObjectURL(data.videoBlob);
+      if (videoRef.current) {
+        videoRef.current.src = videoUrl.current;
+      }
+    }
+    return () => {
+      if (videoUrl.current) {
+        URL.revokeObjectURL(videoUrl.current);
+      }
+    };
+    // eslint-disable-next-line
+  }, [data.videoBlob]);
+
+  const onLoadedMetadata = () => {
+    if (videoRef.current) {
+      setDuration(videoRef.current.duration || 0);
+      setIsLoaded(true);
+    }
+  };
+  const onTimeUpdate = () => {
+    if (videoRef.current) {
+      setCurrentTime(videoRef.current.currentTime);
+      if (videoRef.current.currentTime >= duration && duration > 0) {
+        setIsPlaying(false);
+      }
+    }
+  };
+  const handlePlayPause = () => {
+    if (!isLoaded || !videoRef.current) return;
+    if (isPlaying) {
+      videoRef.current.pause();
+    } else {
+      videoRef.current.play();
+    }
+  };
+  const handleSliderChange = (v: number[]) => {
+    if (videoRef.current && isLoaded) {
+      videoRef.current.currentTime = v[0];
+      setCurrentTime(v[0]);
+    }
+  };
+  const onPlay = () => setIsPlaying(true);
+  const onPause = () => setIsPlaying(false);
+
+  const formatTime = (time: number) => {
+    if (!isFinite(time) || time < 0) return '0:00';
+    const minutes = Math.floor(time / 60);
+    const seconds = Math.floor(time % 60);
+    return `${minutes}:${seconds.toString().padStart(2, '0')}`;
+  };
+
   const handleReplaceVideo = () => {
     updateData({ videoBlob: undefined });
     onPrev();
@@ -175,21 +243,85 @@ const ReviewStep: React.FC<ReviewStepProps> = ({ onNext, onPrev, data, updateDat
         onQualityCheck={handleQualityCheck}
         hideVideoPreview={true}
       >
-        {/* Only show videoPreview if data.videoBlob exists */}
+        {/* Only show custom video preview with controls if videoBlob exists */}
         {data.videoBlob && (
           <div className="space-y-4 mt-2">
-            <VideoPreview videoBlob={data.videoBlob} />
-            <div className="flex justify-center gap-4">
-              <Button 
-                size="sm"
-                variant="secondary"
-                className="flex items-center gap-1"
-                onClick={handleReplaceVideo}
-                type="button"
-              >
-                <Replace className="h-4 w-4" />
-                Replace Video
-              </Button>
+            <div className="space-y-2">
+              <h3 className="text-lg font-semibold flex items-center gap-2 justify-center">
+                <Play className="h-5 w-5" />
+                Video Preview
+                {isLoaded && (
+                  <span className="flex items-center gap-1 text-sm text-muted-foreground ml-3">
+                    <Clock className="h-4 w-4" />
+                    {formatTime(duration)}
+                  </span>
+                )}
+              </h3>
+              <div className="relative bg-black rounded-lg overflow-hidden aspect-video max-w-2xl mx-auto">
+                <video
+                  ref={videoRef}
+                  className="w-full h-full object-contain"
+                  preload="metadata"
+                  controls={false}
+                  onLoadedMetadata={onLoadedMetadata}
+                  onTimeUpdate={onTimeUpdate}
+                  onPlay={onPlay}
+                  onPause={onPause}
+                  onEnded={onPause}
+                  onError={(e) => { setIsLoaded(false); setIsPlaying(false); }}
+                  tabIndex={0}
+                  aria-label="Video preview"
+                  poster=""
+                />
+                {!isLoaded && (
+                  <div className="absolute inset-0 flex items-center justify-center bg-gray-900">
+                    <div className="text-center text-white">
+                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-white mx-auto mb-2"></div>
+                      <p>Loading video...</p>
+                    </div>
+                  </div>
+                )}
+              </div>
+              {/* Controls row */}
+              <div className="flex flex-col items-center gap-3 mt-2 max-w-2xl mx-auto px-2">
+                {/* Play/Pause + Replace */}
+                <div className="flex justify-center items-center gap-3 w-full">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={handlePlayPause}
+                    disabled={!isLoaded}
+                    className="flex items-center gap-2"
+                  >
+                    {isPlaying ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
+                    {isPlaying ? "Pause" : "Play"}
+                  </Button>
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    className="flex items-center gap-1"
+                    onClick={handleReplaceVideo}
+                    type="button"
+                  >
+                    <Replace className="h-4 w-4" />
+                    Replace Video
+                  </Button>
+                  <span className="text-muted-foreground text-sm ml-3">
+                    {formatTime(currentTime)} / {formatTime(duration)}
+                  </span>
+                </div>
+                {/* Slider */}
+                <div className="w-full max-w-xl">
+                  <Slider
+                    min={0}
+                    max={duration || 1}
+                    step={0.05}
+                    value={[Math.min(currentTime, duration)]}
+                    onValueChange={handleSliderChange}
+                    disabled={!isLoaded}
+                  />
+                </div>
+              </div>
             </div>
           </div>
         )}
@@ -239,4 +371,3 @@ const ReviewStep: React.FC<ReviewStepProps> = ({ onNext, onPrev, data, updateDat
 export default ReviewStep;
 
 // NOTE: src/components/onboarding/ReviewStep.tsx is long. Consider asking me to refactor!
-

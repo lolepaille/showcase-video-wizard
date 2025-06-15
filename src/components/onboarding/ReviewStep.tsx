@@ -1,11 +1,10 @@
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { CheckCircle, Upload, AlertCircle, Play, Pause, Clock, Replace } from 'lucide-react';
-import { Slider } from '@/components/ui/slider';
-import { supabase } from '@/integrations/supabase/client';
+import { CheckCircle, Upload, AlertCircle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import SubmissionForm from './SubmissionForm';
 import type { SubmissionData, ClusterType } from '@/pages/Index';
+import ReviewVideoPlayer from './ReviewVideoPlayer';
 
 interface QualityChecked {
   audioVisual: boolean;
@@ -157,93 +156,11 @@ const ReviewStep: React.FC<ReviewStepProps> = ({ onNext, onPrev, data, updateDat
     }
   };
 
-  // ---- Custom Video Player State ----
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [currentTime, setCurrentTime] = useState(0);
-  const [duration, setDuration] = useState(0);
-  const [isLoaded, setIsLoaded] = useState(false);
-  const videoRef = useRef<HTMLVideoElement>(null);
-  const videoUrl = useRef<string>('');
-
-  // Setup video blob on mount/change
-  useEffect(() => {
-    setIsPlaying(false);
-    setCurrentTime(0);
-    setDuration(0);
-    setIsLoaded(false);
-    if (data.videoBlob) {
-      // Clean up previous URL
-      if (videoUrl.current) {
-        URL.revokeObjectURL(videoUrl.current);
-      }
-      videoUrl.current = URL.createObjectURL(data.videoBlob);
-      if (videoRef.current) {
-        videoRef.current.src = videoUrl.current;
-        // Log for debugging
-        console.log("[ReviewStep Video] Set videoRef.current.src =", videoUrl.current);
-      }
-    }
-    return () => {
-      if (videoUrl.current) {
-        URL.revokeObjectURL(videoUrl.current);
-        videoUrl.current = '';
-      }
-    };
-    // Only rerun if videoBlob is changed
-    // eslint-disable-next-line
-  }, [data.videoBlob]);
-
-  const onLoadedMetadata = () => {
-    if (videoRef.current) {
-      const dur = videoRef.current.duration;
-      console.log("[ReviewStep Video] Loaded metadata, duration:", dur);
-      setDuration(Number.isFinite(dur) ? dur : 0);
-      setIsLoaded(Number.isFinite(dur) && dur > 0);
-      setCurrentTime(0);
-    }
-  };
-  const onTimeUpdate = () => {
-    if (videoRef.current) {
-      const cTime = videoRef.current.currentTime;
-      setCurrentTime(Number.isFinite(cTime) ? cTime : 0);
-      if (Number.isFinite(duration) && cTime >= duration && duration > 0) {
-        setIsPlaying(false);
-      }
-    }
-  };
-  const handlePlayPause = () => {
-    if (!isLoaded || !videoRef.current) return;
-    if (isPlaying) {
-      videoRef.current.pause();
-    } else {
-      videoRef.current.play();
-    }
-  };
-  const handleSliderChange = (v: number[]) => {
-    if (videoRef.current && isLoaded) {
-      const sliderVal = Array.isArray(v) && Number.isFinite(v[0]) ? v[0] : 0;
-      if (Number.isFinite(sliderVal) && sliderVal >= 0 && sliderVal <= duration) {
-        videoRef.current.currentTime = sliderVal;
-        setCurrentTime(sliderVal);
-      }
-    }
-  };
-  const onPlay = () => setIsPlaying(true);
-  const onPause = () => setIsPlaying(false);
-
-  const formatTime = (time: number) => {
-    if (!Number.isFinite(time) || time < 0) return '0:00';
-    const minutes = Math.floor(time / 60);
-    const seconds = Math.floor(time % 60);
-    return `${minutes}:${seconds.toString().padStart(2, '0')}`;
-  };
-
+  // Replace/clear video handler
   const handleReplaceVideo = () => {
     updateData({ videoBlob: undefined });
     onPrev();
   };
-
-  // ---- Start render ----
 
   return (
     <div className="space-y-8">
@@ -254,100 +171,15 @@ const ReviewStep: React.FC<ReviewStepProps> = ({ onNext, onPrev, data, updateDat
         onQualityCheck={handleQualityCheck}
         hideVideoPreview={true}
       >
-        {/* Video Preview section: show only if videoBlob exists */}
+        {/* Use new ReviewVideoPlayer component */}
         {data.videoBlob && (
-          <div className="space-y-4 mt-2">
-            <div className="space-y-2">
-              <h3 className="text-lg font-semibold flex items-center gap-2 justify-center">
-                <Play className="h-5 w-5" />
-                Video Preview
-                {isLoaded && (
-                  <span className="flex items-center gap-1 text-sm text-muted-foreground ml-3">
-                    <Clock className="h-4 w-4" />
-                    {formatTime(duration)}
-                  </span>
-                )}
-              </h3>
-              <div className="relative bg-black rounded-lg overflow-hidden aspect-video max-w-2xl mx-auto">
-                <video
-                  ref={videoRef}
-                  className="w-full h-full object-contain"
-                  preload="metadata"
-                  controls={false}
-                  onLoadedMetadata={onLoadedMetadata}
-                  onTimeUpdate={onTimeUpdate}
-                  onPlay={onPlay}
-                  onPause={onPause}
-                  onEnded={onPause}
-                  onError={(e) => { console.error("[ReviewStep Video] Error", e); setIsLoaded(false); setIsPlaying(false); }}
-                  tabIndex={0}
-                  aria-label="Video preview"
-                  poster=""
-                />
-                {!isLoaded && (
-                  <div className="absolute inset-0 flex items-center justify-center bg-gray-900">
-                    <div className="text-center text-white">
-                      <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-white mx-auto mb-2"></div>
-                      <p>Loading video...</p>
-                    </div>
-                  </div>
-                )}
-              </div>
-              {/* Controls row */}
-              <div className="flex flex-col items-center gap-3 mt-2 max-w-2xl mx-auto px-2">
-                {/* Slider */}
-                <div className="w-full flex items-center gap-3 justify-center max-w-xl">
-                  <span className="text-muted-foreground text-sm min-w-[45px] text-center">
-                    {formatTime(currentTime)}
-                  </span>
-                  <Slider
-                    min={0}
-                    max={duration > 0 ? duration : 1}
-                    step={0.05}
-                    value={[Math.min(Math.max(currentTime, 0), duration > 0 ? duration : 1)]}
-                    onValueChange={handleSliderChange}
-                    disabled={!isLoaded || !(duration > 0)}
-                    className="flex-1"
-                  />
-                  <span className="text-muted-foreground text-sm min-w-[45px] text-center">
-                    {formatTime(duration)}
-                  </span>
-                </div>
-                {/* Play/Pause + Replace, centered */}
-                <div className="flex justify-center items-center gap-3 w-full mt-1">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={handlePlayPause}
-                    disabled={!isLoaded}
-                    className="flex items-center gap-2"
-                    type="button"
-                  >
-                    {isPlaying ? <Pause className="h-4 w-4" /> : <Play className="h-4 w-4" />}
-                    {isPlaying ? "Pause" : "Play"}
-                  </Button>
-                  <Button
-                    variant="secondary"
-                    size="sm"
-                    className="flex items-center gap-1"
-                    onClick={handleReplaceVideo}
-                    type="button"
-                  >
-                    <Replace className="h-4 w-4" />
-                    Replace Video
-                  </Button>
-                </div>
-              </div>
-            </div>
-          </div>
+          <ReviewVideoPlayer blob={data.videoBlob} onReplace={handleReplaceVideo} />
         )}
       </SubmissionForm>
-
       <div className="flex justify-between items-center">
         <Button variant="outline" onClick={onPrev} disabled={isSubmitting}>
           Previous
         </Button>
-        
         <Button 
           onClick={handleSubmit}
           disabled={!canSubmit() || isSubmitting}
@@ -366,7 +198,6 @@ const ReviewStep: React.FC<ReviewStepProps> = ({ onNext, onPrev, data, updateDat
           )}
         </Button>
       </div>
-
       {!canSubmit() && (
         <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
           <div className="flex items-start gap-3">

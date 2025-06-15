@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useRef } from 'react';
 import WelcomeStep from '@/components/onboarding/WelcomeStep';
 import RequirementsStep from '@/components/onboarding/RequirementsStep';
@@ -61,14 +62,31 @@ const Index = () => {
   const steps: OnboardingStep[] = ['welcome', 'requirements', 'questions', 'recording', 'review', 'confirmation'];
   const currentStepIndex = steps.indexOf(currentStep);
 
+  // Updated nextStep logic to account for skipping "recording" if video is uploaded
   const nextStep = () => {
+    // Get currently planned next step
     const nextIndex = currentStepIndex + 1;
-    if (nextIndex < steps.length) {
-      setCurrentStep(steps[nextIndex]);
+    let proposedStep = steps[nextIndex];
+
+    // If coming from questions and a video is already uploaded, skip recording
+    if (currentStep === 'questions' && submissionData.videoBlob) {
+      proposedStep = 'review';
+    }
+
+    // If coming from recording and no video is present, prevent moving forward
+    // (default behavior: already handled by button disables in UI)
+    if (proposedStep && steps.includes(proposedStep)) {
+      setCurrentStep(proposedStep);
     }
   };
 
   const prevStep = () => {
+    // If coming back from review and a video was uploaded/skipped recording,
+    // return to questions instead of recording
+    if (currentStep === 'review' && submissionData.videoBlob) {
+      setCurrentStep('questions');
+      return;
+    }
     const prevIndex = currentStepIndex - 1;
     if (prevIndex >= 0) {
       setCurrentStep(steps[prevIndex]);
@@ -80,6 +98,16 @@ const Index = () => {
   };
 
   const renderCurrentStep = () => {
+    // If videoBlob is present and currentStep is 'recording', skip to review
+    if (
+      currentStep === 'recording' &&
+      submissionData.videoBlob
+    ) {
+      // Immediately jump to review step if a video was uploaded
+      setCurrentStep('review');
+      return null;
+    }
+
     switch (currentStep) {
       case 'welcome':
         return <WelcomeStep onNext={nextStep} data={submissionData} updateData={updateData} />;
@@ -108,7 +136,6 @@ const Index = () => {
           {renderCurrentStep()}
         </div>
       </div>
-      {/* Footer with navigation links - removed user submissions link */}
       <footer className="w-full border-t bg-white/80 py-4 mt-8 backdrop-blur flex flex-col md:flex-row items-center justify-between gap-5 px-4">
         <a 
           href="/admin/dashboard" 
@@ -130,3 +157,4 @@ const Index = () => {
 };
 
 export default Index;
+

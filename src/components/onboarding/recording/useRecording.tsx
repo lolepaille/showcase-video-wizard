@@ -1,4 +1,3 @@
-
 import { useState, useRef, useCallback } from 'react';
 import { useIsMobile } from '@/hooks/use-mobile';
 import type { SubmissionData } from '@/pages/Index';
@@ -30,6 +29,7 @@ export const useRecording = ({ updateData, data }: UseRecordingProps) => {
   const chunksRef = useRef<Blob[]>([]);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const animationRef = useRef<number | null>(null);
+  const compositingActiveRef = useRef(false);
 
   // Helper to process chunks into Blob for preview
   const processRecordedBlob = useCallback((blob: Blob) => {
@@ -68,7 +68,7 @@ export const useRecording = ({ updateData, data }: UseRecordingProps) => {
 
   const stopRecording = useCallback(() => {
     console.log("[Recording] stopRecording called");
-    
+    compositingActiveRef.current = false;
     if (mediaRecorderRef.current && isRecording) {
       console.log("[Recording] stopping MediaRecorder");
       mediaRecorderRef.current.stop();
@@ -209,11 +209,18 @@ export const useRecording = ({ updateData, data }: UseRecordingProps) => {
           pipVideoRef.current.srcObject = cameraStreamLocal;
         }
 
-        // *** FIX: set isRecording true BEFORE starting animation loop ***
-        setIsRecording(true);
+        compositingActiveRef.current = true;
+        console.log("[Recording] Starting compositing loop");
 
         // Composite the streams
         const drawFrame = () => {
+          if (!compositingActiveRef.current) {
+            console.log("[Recording] drawFrame: compositing ended");
+            return;
+          }
+          if (Date.now() % 1000 < 18) {
+            console.log("[Recording] drawFrame: compositing frame at", Date.now());
+          }
           // Draw screen capture
           ctx.drawImage(screenVideo, 0, 0, canvas.width, canvas.height);
           
@@ -230,12 +237,9 @@ export const useRecording = ({ updateData, data }: UseRecordingProps) => {
             pipHeight
           );
           
-          if (isRecording || animationRef.current !== null) {
-            animationRef.current = requestAnimationFrame(drawFrame);
-          }
+          animationRef.current = requestAnimationFrame(drawFrame);
         };
-        
-        // Start compositing loop (now that isRecording is true)
+
         drawFrame();
         finalStream = canvas.captureStream(30);
         
@@ -288,7 +292,6 @@ export const useRecording = ({ updateData, data }: UseRecordingProps) => {
       if (recordingMode === 'camera' || recordingMode === 'screen') {
         setIsRecording(true);
       }
-
     } catch (err) {
       console.error('[Recording] Error starting recording:', err);
       setError('Could not access camera and/or screen. Please check your permissions.');
@@ -308,6 +311,7 @@ export const useRecording = ({ updateData, data }: UseRecordingProps) => {
     if (pipVideoRef.current) {
       pipVideoRef.current.srcObject = null;
     }
+    compositingActiveRef.current = false;
   }, [updateData]);
 
   const playPreview = useCallback(() => {

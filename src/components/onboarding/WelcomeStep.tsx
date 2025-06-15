@@ -85,7 +85,7 @@ const WelcomeStep: React.FC<WelcomeStepProps> = ({ onNext, data, updateData }) =
             <img 
               src="https://upload.wikimedia.org/wikipedia/commons/5/51/RMIT_University_Logo.svg" 
               alt="RMIT Logo"
-              className="w-16 h-16 object-contain mx-auto"
+              className="w-[150px] h-auto object-contain mx-auto"
             />
           </div>
           <CardTitle className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-red-600 bg-clip-text text-transparent">

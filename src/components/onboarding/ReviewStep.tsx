@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+
+import React, { useState, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { CheckCircle, Upload, AlertCircle } from 'lucide-react';
+import { CheckCircle, Upload, AlertCircle, RefreshCcw } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import SubmissionForm from './SubmissionForm';
@@ -28,6 +29,8 @@ const ReviewStep: React.FC<ReviewStepProps> = ({ onNext, onPrev, data, updateDat
     timeLimit: false,
   });
   const { toast } = useToast();
+
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleContactChange = (field: string, value: string | ClusterType) => {
     updateData({ [field]: value });
@@ -69,8 +72,6 @@ const ReviewStep: React.FC<ReviewStepProps> = ({ onNext, onPrev, data, updateDat
       throw error;
     }
   };
-
-  // REMOVED: getLocalUserId & user_id fetching
 
   const handleSubmit = async () => {
     if (!canSubmit()) {
@@ -164,6 +165,63 @@ const ReviewStep: React.FC<ReviewStepProps> = ({ onNext, onPrev, data, updateDat
     }
   };
 
+  // Handler for when user chooses a replacement video file
+  const handleReplaceVideo = (evt: React.ChangeEvent<HTMLInputElement>) => {
+    const file = evt.target.files?.[0];
+    if (file) {
+      if (!file.type.startsWith("video/")) {
+        toast({
+          title: "Invalid file type",
+          description: "Please choose a video file.",
+          variant: "destructive"
+        });
+        return;
+      }
+      // Immediately update the videoBlob with the new File
+      updateData({ videoBlob: file });
+      toast({
+        title: "Video replaced",
+        description: "You have replaced your video.",
+      });
+    }
+    // Reset the value so the same file can be chosen again if needed
+    evt.target.value = "";
+  };
+
+  // Renders the video preview (with replace button if there is a videoBlob)
+  const renderVideoPreview = () => {
+    if (!data.videoBlob) return null;
+    return (
+      <div className="space-y-2">
+        <h3 className="text-lg font-semibold">Video Preview</h3>
+        <video
+          src={URL.createObjectURL(data.videoBlob)}
+          controls
+          className="w-full max-w-md rounded border"
+        />
+        <div>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="mt-2"
+            onClick={() => fileInputRef.current?.click()}
+          >
+            <RefreshCcw className="h-4 w-4 mr-1" />
+            Replace Video
+          </Button>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="video/*"
+            className="hidden"
+            onChange={handleReplaceVideo}
+          />
+        </div>
+      </div>
+    );
+  };
+
   return (
     <div className="space-y-8">
       <SubmissionForm
@@ -172,6 +230,9 @@ const ReviewStep: React.FC<ReviewStepProps> = ({ onNext, onPrev, data, updateDat
         onContactChange={handleContactChange}
         onQualityCheck={handleQualityCheck}
       />
+
+      {/* Render video replace below the regular SubmissionForm video preview */}
+      {renderVideoPreview()}
 
       <div className="flex justify-between items-center">
         <Button variant="outline" onClick={onPrev} disabled={isSubmitting}>

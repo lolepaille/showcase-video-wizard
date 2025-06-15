@@ -179,20 +179,24 @@ const ReviewStep: React.FC<ReviewStepProps> = ({ onNext, onPrev, data, updateDat
       videoUrl.current = URL.createObjectURL(data.videoBlob);
       if (videoRef.current) {
         videoRef.current.src = videoUrl.current;
+        // Log for debugging
+        console.log("[ReviewStep Video] Set videoRef.current.src =", videoUrl.current);
       }
     }
     return () => {
       if (videoUrl.current) {
         URL.revokeObjectURL(videoUrl.current);
+        videoUrl.current = '';
       }
     };
+    // Only rerun if videoBlob is changed
     // eslint-disable-next-line
   }, [data.videoBlob]);
 
   const onLoadedMetadata = () => {
     if (videoRef.current) {
-      // Only set if safe and finite!
       const dur = videoRef.current.duration;
+      console.log("[ReviewStep Video] Loaded metadata, duration:", dur);
       setDuration(Number.isFinite(dur) ? dur : 0);
       setIsLoaded(Number.isFinite(dur) && dur > 0);
       setCurrentTime(0);
@@ -275,7 +279,7 @@ const ReviewStep: React.FC<ReviewStepProps> = ({ onNext, onPrev, data, updateDat
                   onPlay={onPlay}
                   onPause={onPause}
                   onEnded={onPause}
-                  onError={(e) => { setIsLoaded(false); setIsPlaying(false); }}
+                  onError={(e) => { console.error("[ReviewStep Video] Error", e); setIsLoaded(false); setIsPlaying(false); }}
                   tabIndex={0}
                   aria-label="Video preview"
                   poster=""

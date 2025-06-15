@@ -1,11 +1,13 @@
+
 import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { CheckCircle, Upload, AlertCircle } from 'lucide-react';
+import { CheckCircle, Upload, AlertCircle, Play, Replace } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import SubmissionForm from './SubmissionForm';
 import type { SubmissionData, ClusterType } from '@/pages/Index';
+import VideoPreview from './VideoPreview';
 
 interface QualityChecked {
   audioVisual: boolean;
@@ -164,8 +166,37 @@ const ReviewStep: React.FC<ReviewStepProps> = ({ onNext, onPrev, data, updateDat
     }
   };
 
+  // Replace video handler
+  const handleReplaceVideo = () => {
+    // Remove recorded video from submission data and go back to recording step
+    updateData({ videoBlob: undefined });
+    onPrev(); // Should send user back to Record step
+  };
+
   return (
     <div className="space-y-8">
+      {data.videoBlob && (
+        <div className="space-y-2 mb-6">
+          <div className="flex items-center justify-between gap-2">
+            <div className="font-semibold text-lg flex items-center gap-2">
+              <Play className="h-5 w-5" />
+              Video Preview
+            </div>
+            <Button 
+              size="sm"
+              variant="secondary"
+              className="flex items-center gap-1"
+              onClick={handleReplaceVideo}
+              type="button"
+            >
+              <Replace className="h-4 w-4" />
+              Replace Video
+            </Button>
+          </div>
+          <VideoPreview videoBlob={data.videoBlob} />
+        </div>
+      )}
+
       <SubmissionForm
         data={data}
         qualityChecked={qualityChecked}
@@ -217,3 +248,4 @@ const ReviewStep: React.FC<ReviewStepProps> = ({ onNext, onPrev, data, updateDat
 export default ReviewStep;
 
 // NOTE: src/components/onboarding/ReviewStep.tsx is long. Consider asking me to refactor!
+

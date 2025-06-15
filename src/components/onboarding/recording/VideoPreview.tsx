@@ -37,6 +37,8 @@ const VideoPreview: React.FC<VideoPreviewProps> = ({
   showRotateOverlay,
   onRotateOverlayClose
 }) => {
+  // Recording time fix: Always clamp timer between 0 and 120 (video limit)
+  const safeTime = Math.max(0, Math.min(recordingTime, 120));
   return (
     <div className="relative bg-black rounded-lg overflow-hidden aspect-video max-w-2xl mx-auto">
       <video
@@ -46,7 +48,7 @@ const VideoPreview: React.FC<VideoPreviewProps> = ({
         playsInline
         className="w-full h-full object-cover"
       />
-      
+
       {/* Picture-in-Picture overlay for camera when recording both */}
       {recordingMode === 'both' && (cameraStream || isRecording) && (
         <div className="absolute bottom-4 right-4 w-32 h-24 border-2 border-white rounded-lg overflow-hidden">
@@ -84,7 +86,7 @@ const VideoPreview: React.FC<VideoPreviewProps> = ({
           </div>
         </div>
       )}
-      
+
       {!cameraStream && !screenStream && !recordedBlob && !showRotateOverlay && (
         <div className="absolute inset-0 flex items-center justify-center bg-gray-900">
           <div className="text-center text-white">
@@ -99,11 +101,11 @@ const VideoPreview: React.FC<VideoPreviewProps> = ({
       {isRecording && (
         <div className="absolute top-4 left-4 bg-red-600 text-white px-3 py-1 rounded-full flex items-center gap-2">
           <div className="w-2 h-2 bg-white rounded-full animate-pulse" />
-          <span className="font-mono font-bold">{formatTime(recordingTime)}</span>
+          <span className="font-mono font-bold">{formatTime(safeTime)}</span>
         </div>
       )}
 
-      {isRecording && recordingTime >= 110 && recordingTime <= 120 && (
+      {isRecording && safeTime >= 110 && safeTime <= 120 && (
         <div className="absolute bottom-4 left-4 right-4 bg-amber-600 text-white px-3 py-2 rounded text-center">
           <span className="font-medium">10 seconds remaining!</span>
         </div>

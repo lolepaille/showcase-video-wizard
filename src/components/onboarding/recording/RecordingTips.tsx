@@ -12,15 +12,21 @@ const RecordingTips: React.FC = () => {
         <div>
           <h4 className="font-medium text-blue-800 mb-2">Recording Tips:</h4>
           <ul className="text-sm text-blue-700 space-y-1">
-            <li>• <strong>Camera:</strong> {isMobile ? `Use your device's front or back camera` : `Traditional face-to-face recording`}</li>
-            {!isMobile && (
+            {isMobile ? (
               <>
+                <li>• <strong>Camera:</strong> Use your device's front or back camera. Select your preferred camera before recording.</li>
+                <li>• Maximum recording time is 2 minutes</li>
+                <li>• Your video can be trimmed by admins during review</li>
+              </>
+            ) : (
+              <>
+                <li>• <strong>Camera:</strong> Use your device's front or back camera (if available)</li>
                 <li>• <strong>Screen:</strong> Perfect for presentations and demos</li>
                 <li>• <strong>Both:</strong> Present with your face in the corner</li>
+                <li>• Maximum recording time is 2 minutes</li>
+                <li>• Your video can be trimmed by admins during review</li>
               </>
             )}
-            <li>• Maximum recording time is 2 minutes</li>
-            <li>• Your video can be trimmed by admins during review</li>
           </ul>
         </div>
       </div>

@@ -42,6 +42,33 @@ const RecordingStep: React.FC<RecordingStepProps> = ({ onNext, onPrev, data, upd
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const animationRef = useRef<number | null>(null);
 
+  const stopRecording = useCallback(() => {
+    if (mediaRecorderRef.current && isRecording) {
+      mediaRecorderRef.current.stop();
+      setIsRecording(false);
+      
+      if (timerRef.current) {
+        clearInterval(timerRef.current);
+        timerRef.current = null;
+      }
+      
+      if (animationRef.current) {
+        cancelAnimationFrame(animationRef.current);
+        animationRef.current = null;
+      }
+      
+      // Stop all streams
+      [cameraStream, screenStream].forEach(stream => {
+        if (stream) {
+          stream.getTracks().forEach(track => track.stop());
+        }
+      });
+      
+      setCameraStream(null);
+      setScreenStream(null);
+    }
+  }, [isRecording, cameraStream, screenStream]);
+
   const startRecording = useCallback(async () => {
     try {
       console.log('[RecordingStep] Starting recording with mode:', recordingMode, 'cameraFacing:', cameraFacing);
@@ -255,33 +282,6 @@ const RecordingStep: React.FC<RecordingStepProps> = ({ onNext, onPrev, data, upd
       setError('Could not access camera and/or screen. Please check your permissions.');
     }
   }, [updateData, recordingMode, isMobile, cameraFacing, stopRecording]);
-
-  const stopRecording = useCallback(() => {
-    if (mediaRecorderRef.current && isRecording) {
-      mediaRecorderRef.current.stop();
-      setIsRecording(false);
-      
-      if (timerRef.current) {
-        clearInterval(timerRef.current);
-        timerRef.current = null;
-      }
-      
-      if (animationRef.current) {
-        cancelAnimationFrame(animationRef.current);
-        animationRef.current = null;
-      }
-      
-      // Stop all streams
-      [cameraStream, screenStream].forEach(stream => {
-        if (stream) {
-          stream.getTracks().forEach(track => track.stop());
-        }
-      });
-      
-      setCameraStream(null);
-      setScreenStream(null);
-    }
-  }, [isRecording, cameraStream, screenStream]);
 
   const resetRecording = useCallback(() => {
     setRecordedBlob(null);

@@ -18,6 +18,13 @@ interface VideoPreviewProps {
   onRotateOverlayClose: () => void;
 }
 
+const formatTime = (seconds: number) => {
+  if (typeof seconds !== 'number' || isNaN(seconds) || seconds < 0) return '0:00';
+  const mins = Math.floor(seconds / 60);
+  const secs = Math.floor(seconds % 60);
+  return `${mins}:${secs.toString().padStart(2, '0')}`;
+};
+
 const VideoPreview: React.FC<VideoPreviewProps> = ({
   videoRef,
   pipVideoRef,
@@ -30,12 +37,6 @@ const VideoPreview: React.FC<VideoPreviewProps> = ({
   showRotateOverlay,
   onRotateOverlayClose
 }) => {
-  const formatTime = (seconds: number) => {
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${mins}:${secs.toString().padStart(2, '0')}`;
-  };
-
   return (
     <div className="relative bg-black rounded-lg overflow-hidden aspect-video max-w-2xl mx-auto">
       <video
@@ -102,7 +103,7 @@ const VideoPreview: React.FC<VideoPreviewProps> = ({
         </div>
       )}
 
-      {isRecording && recordingTime >= 110 && (
+      {isRecording && recordingTime >= 110 && recordingTime <= 120 && (
         <div className="absolute bottom-4 left-4 right-4 bg-amber-600 text-white px-3 py-2 rounded text-center">
           <span className="font-medium">10 seconds remaining!</span>
         </div>

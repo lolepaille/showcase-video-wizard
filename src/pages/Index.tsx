@@ -109,17 +109,17 @@ const Index = () => {
         </div>
       </div>
       {/* Footer with navigation links - removed user submissions link */}
-      <footer className="w-full border-t bg-white/80 py-4 mt-8 backdrop-blur flex flex-col md:flex-row items-center justify-between gap-5">
+      <footer className="w-full border-t bg-white/80 py-4 mt-8 backdrop-blur flex flex-col md:flex-row items-center justify-between gap-5 px-4">
         <a 
           href="/admin/dashboard" 
-          className="text-sm text-blue-600 hover:text-blue-800 bg-white px-3 py-2 rounded-lg shadow-md hover:shadow-lg transition-all duration-200 border border-blue-200"
+          className="text-sm text-blue-600 hover:text-blue-800 bg-white px-3 py-2 rounded-lg shadow-md hover:shadow-lg transition-all duration-200 border border-blue-200 ml-2 md:ml-6"
           title="Admin Dashboard"
         >
           Admin Dashboard
         </a>
         <a 
           href="/showcase" 
-          className="text-sm text-green-600 hover:text-green-800 bg-white px-3 py-2 rounded-lg shadow-md hover:shadow-lg transition-all duration-200 border border-green-200"
+          className="text-sm text-green-600 hover:text-green-800 bg-white px-3 py-2 rounded-lg shadow-md hover:shadow-lg transition-all duration-200 border border-green-200 mr-2 md:mr-6"
           title="View Showcase"
         >
           View Showcase

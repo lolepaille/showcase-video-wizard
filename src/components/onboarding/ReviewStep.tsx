@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -8,8 +7,11 @@ import { useToast } from '@/hooks/use-toast';
 import SubmissionForm from './SubmissionForm';
 import type { SubmissionData, ClusterType } from '@/pages/Index';
 
-import VideoReplaceSection from './VideoReplaceSection';
-import { useReviewQualityChecks } from './useReviewQualityChecks';
+interface QualityChecked {
+  audioVisual: boolean;
+  questionsAddressed: boolean;
+  timeLimit: boolean;
+}
 
 interface ReviewStepProps {
   onNext: () => void;
@@ -20,16 +22,25 @@ interface ReviewStepProps {
 
 const ReviewStep: React.FC<ReviewStepProps> = ({ onNext, onPrev, data, updateData }) => {
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [qualityChecked, setQualityChecked] = useState<QualityChecked>({
+    audioVisual: false,
+    questionsAddressed: false,
+    timeLimit: false,
+  });
   const { toast } = useToast();
-  const { qualityChecked, handleQualityCheck, allChecked, setQualityChecked } = useReviewQualityChecks();
 
   const handleContactChange = (field: string, value: string | ClusterType) => {
     updateData({ [field]: value });
   };
 
+  const handleQualityCheck = (key: keyof QualityChecked, checked: boolean) => {
+    setQualityChecked(prev => ({ ...prev, [key]: checked }));
+  };
+
   const canSubmit = () => {
     const hasRequiredFields = data.fullName && data.email && data.cluster;
-    return hasRequiredFields && allChecked;
+    const hasAllChecks = Object.values(qualityChecked).every(Boolean);
+    return hasRequiredFields && hasAllChecks;
   };
 
   const uploadViaFunction = async (file: File, endpoint: string): Promise<string | null> => {
@@ -58,6 +69,8 @@ const ReviewStep: React.FC<ReviewStepProps> = ({ onNext, onPrev, data, updateDat
       throw error;
     }
   };
+
+  // REMOVED: getLocalUserId & user_id fetching
 
   const handleSubmit = async () => {
     if (!canSubmit()) {
@@ -108,10 +121,12 @@ const ReviewStep: React.FC<ReviewStepProps> = ({ onNext, onPrev, data, updateDat
         video_url: videoUrl,
         notes: data.notes,
         is_published: false
+        // Removed: user_id (column doesn't exist)
       };
 
       console.log('Inserting submission data:', submissionData);
 
+      // Insert submission to database - no user_id
       const { data: insertedData, error: insertError } = await supabase
         .from('submissions')
         .insert(submissionData)
@@ -149,11 +164,6 @@ const ReviewStep: React.FC<ReviewStepProps> = ({ onNext, onPrev, data, updateDat
     }
   };
 
-  // Use VideoReplaceSection for video preview and replacement
-  const handleVideoReplace = (file: File) => {
-    updateData({ videoBlob: file });
-  };
-
   return (
     <div className="space-y-8">
       <SubmissionForm
@@ -162,8 +172,6 @@ const ReviewStep: React.FC<ReviewStepProps> = ({ onNext, onPrev, data, updateDat
         onContactChange={handleContactChange}
         onQualityCheck={handleQualityCheck}
       />
-
-      <VideoReplaceSection videoBlob={data.videoBlob} onReplace={handleVideoReplace} />
 
       <div className="flex justify-between items-center">
         <Button variant="outline" onClick={onPrev} disabled={isSubmitting}>
@@ -207,3 +215,5 @@ const ReviewStep: React.FC<ReviewStepProps> = ({ onNext, onPrev, data, updateDat
 };
 
 export default ReviewStep;
+
+// NOTE: src/components/onboarding/ReviewStep.tsx is long. Consider asking me to refactor!

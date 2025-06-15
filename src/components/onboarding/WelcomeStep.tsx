@@ -79,14 +79,35 @@ const WelcomeStep: React.FC<WelcomeStepProps> = ({ onNext, data, updateData }) =
           }),
         });
 
-        const result = await response.json();
+        // Improved: Graceful error handling for non-OK and empty responses
+        let result: any = {};
+        let text = await response.text();
+        try {
+          result = text ? JSON.parse(text) : {};
+        } catch (jsonErr) {
+          console.error("Register-user response is not valid JSON:", text);
+          setRegisterError("Unexpected server error (invalid response).");
+          setRegistering(false);
+          return;
+        }
         if (!response.ok) {
-          throw new Error(result.error || "Failed to register user");
+          // Handle 404 or other errors meaningfully
+          const errorMsg = result.error || response.status === 404
+            ? "Registration service not available. Please try again later."
+            : "Failed to register user.";
+          setRegisterError(errorMsg);
+          setRegistering(false);
+          return;
+        }
+        if (!result.user_id) {
+          setRegisterError("Registration failed: No user id returned.");
+          setRegistering(false);
+          return;
         }
         window.localStorage.setItem("registered_user_id", result.user_id);
         onNext();
       } catch (err: any) {
-        setRegisterError(err.message);
+        setRegisterError(err.message || "Unknown error occurred during registration.");
       } finally {
         setRegistering(false);
       }

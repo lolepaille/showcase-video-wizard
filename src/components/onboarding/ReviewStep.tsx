@@ -5,6 +5,7 @@ import { useToast } from '@/hooks/use-toast';
 import SubmissionForm from './SubmissionForm';
 import type { SubmissionData, ClusterType } from '@/pages/Index';
 import ReviewVideoPlayer from './ReviewVideoPlayer';
+import { supabase } from "@/integrations/supabase/client";
 
 interface QualityChecked {
   audioVisual: boolean;

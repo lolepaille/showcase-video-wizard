@@ -100,8 +100,8 @@ const Index = () => {
   };
 
   return (
-    <div ref={containerRef} className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-red-50">
-      <div className="container mx-auto px-4 py-8 max-w-4xl">
+    <div ref={containerRef} className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-red-50 flex flex-col">
+      <div className="container mx-auto px-4 py-8 max-w-4xl flex-1">
         {currentStep !== 'confirmation' && (
           <ProgressBar currentStep={currentStepIndex} totalSteps={steps.length - 1} />
         )}
@@ -109,24 +109,23 @@ const Index = () => {
           {renderCurrentStep()}
         </div>
       </div>
-      
-      {/* Bottom navigation links */}
-      <div className="fixed bottom-4 left-4 right-4 flex justify-between items-end pointer-events-none">
+      {/* Footer with navigation links */}
+      <footer className="w-full border-t bg-white/80 py-4 mt-8 backdrop-blur flex flex-col md:flex-row items-center justify-between gap-5">
         <a 
-          href="/admin" 
-          className="text-sm text-blue-600 hover:text-blue-800 bg-white px-3 py-2 rounded-lg shadow-md hover:shadow-lg transition-all duration-200 border border-blue-200 pointer-events-auto"
-          title="Admin Access"
+          href="/admin/dashboard" 
+          className="text-sm text-blue-600 hover:text-blue-800 bg-white px-3 py-2 rounded-lg shadow-md hover:shadow-lg transition-all duration-200 border border-blue-200"
+          title="Admin Dashboard"
         >
-          Admin Portal
+          Admin Dashboard
         </a>
         <a 
           href="/showcase" 
-          className="text-sm text-green-600 hover:text-green-800 bg-white px-3 py-2 rounded-lg shadow-md hover:shadow-lg transition-all duration-200 border border-green-200 pointer-events-auto"
+          className="text-sm text-green-600 hover:text-green-800 bg-white px-3 py-2 rounded-lg shadow-md hover:shadow-lg transition-all duration-200 border border-green-200"
           title="View Showcase"
         >
           View Showcase
         </a>
-      </div>
+      </footer>
     </div>
   );
 };

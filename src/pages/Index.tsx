@@ -59,23 +59,6 @@ const Index = () => {
     ensureStorageBuckets();
   }, []);
 
-  // Auth state
-  const [user, setUser] = useState(null);
-  const [checkingAuth, setCheckingAuth] = useState(true);
-
-  useEffect(() => {
-    // Set up auth listener
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUser(session?.user ?? null);
-    });
-    // Initial check for session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setUser(session?.user ?? null);
-      setCheckingAuth(false);
-    });
-    return () => subscription.unsubscribe();
-  }, []);
-
   const steps: OnboardingStep[] = ['welcome', 'requirements', 'questions', 'recording', 'review', 'confirmation'];
   const currentStepIndex = steps.indexOf(currentStep);
 
@@ -115,23 +98,6 @@ const Index = () => {
         return null;
     }
   };
-
-  // After welcome step, require authentication
-  if (!checkingAuth && currentStep !== 'welcome' && !user) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="bg-white p-8 rounded shadow-xl">
-          <h2 className="text-xl font-bold mb-2">Please sign up or log in to submit</h2>
-          <a
-            href="/auth"
-            className="inline-block underline text-blue-600 hover:text-blue-800"
-          >
-            Proceed to Auth Page
-          </a>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div ref={containerRef} className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-red-50">

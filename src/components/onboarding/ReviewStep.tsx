@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -70,10 +71,7 @@ const ReviewStep: React.FC<ReviewStepProps> = ({ onNext, onPrev, data, updateDat
     }
   };
 
-  // Find user ID created from WelcomeStep (never triggers login)
-  const getLocalUserId = () => {
-    return window.localStorage.getItem("registered_user_id");
-  };
+  // REMOVED: getLocalUserId & user_id fetching
 
   const handleSubmit = async () => {
     if (!canSubmit()) {
@@ -95,15 +93,6 @@ const ReviewStep: React.FC<ReviewStepProps> = ({ onNext, onPrev, data, updateDat
     });
 
     try {
-      // Get the user ID from localStorage, else fallback to fetching user from supabase.auth
-      let userId = getLocalUserId();
-      if (!userId) {
-        // fallback to auth if not found (should not happen unless user cleared storage)
-        const { data: authData } = await supabase.auth.getUser();
-        userId = authData?.user?.id;
-      }
-      if (!userId) throw new Error("No user ID found. Please start again.");
-
       let profilePictureUrl = null;
       let videoUrl = null;
 
@@ -123,7 +112,7 @@ const ReviewStep: React.FC<ReviewStepProps> = ({ onNext, onPrev, data, updateDat
         videoUrl = await uploadViaFunction(videoFile, 'upload-video');
       }
 
-      // Prepare submission data with user_id
+      // Prepare submission data with user_id = null (anonymous)
       const submissionData = {
         full_name: data.fullName,
         email: data.email,
@@ -133,7 +122,7 @@ const ReviewStep: React.FC<ReviewStepProps> = ({ onNext, onPrev, data, updateDat
         video_url: videoUrl,
         notes: data.notes,
         is_published: false,
-        user_id: userId, // Use the user ID created in WelcomeStep
+        user_id: null, // Always null for anonymous
       };
 
       console.log('Inserting submission data:', submissionData);
@@ -228,4 +217,4 @@ const ReviewStep: React.FC<ReviewStepProps> = ({ onNext, onPrev, data, updateDat
 
 export default ReviewStep;
 
-// NOTE: src/components/onboarding/ReviewStep.tsx is long. Consider asking me to refactor soon!
+// NOTE: src/components/onboarding/ReviewStep.tsx is long. Consider asking me to refactor!

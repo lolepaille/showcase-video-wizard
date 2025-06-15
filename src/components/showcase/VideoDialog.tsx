@@ -18,6 +18,7 @@ const VideoDialog: React.FC<VideoDialogProps> = ({
   onVideoEnd
 }) => {
   const videoRef = useRef<HTMLVideoElement>(null);
+  const videoEndedRef = useRef(false);
 
   const startTime: number | undefined = submission && submission.notes && typeof submission.notes.startTime === 'number'
     ? submission.notes.startTime
@@ -31,6 +32,7 @@ const VideoDialog: React.FC<VideoDialogProps> = ({
       : undefined);
 
   useEffect(() => {
+    videoEndedRef.current = false;
     const video = videoRef.current;
     if (!video || !submission?.video_url) return;
 
@@ -43,7 +45,8 @@ const VideoDialog: React.FC<VideoDialogProps> = ({
 
     const handleTimeUpdate = () => {
       if (typeof endTime === 'number' && endTime > 0) {
-        if (video.currentTime >= endTime) {
+        if (video.currentTime >= endTime && !videoEndedRef.current) {
+          videoEndedRef.current = true;
           console.log('[Trim] Reached endTime - pausing video at:', endTime);
           video.pause();
           onVideoEnd();
@@ -61,6 +64,15 @@ const VideoDialog: React.FC<VideoDialogProps> = ({
     // Only re-run if a different video is selected
     // eslint-disable-next-line
   }, [submission?.video_url, startTime, endTime]);
+
+  // Ensure onVideoEnd is called when video naturally ends (if not already handled by trimming)
+  const handleVideoEnded = () => {
+    if (!videoEndedRef.current) {
+      videoEndedRef.current = true;
+      console.log('[AutoMode] Video ended naturally. Calling onVideoEnd()');
+      onVideoEnd();
+    }
+  };
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
@@ -115,6 +127,7 @@ const VideoDialog: React.FC<VideoDialogProps> = ({
                 src={submission.video_url}
                 controls
                 autoPlay
+                onEnded={handleVideoEnded}
                 className="w-full h-full object-contain"
                 style={{ position: "absolute", top: 0, left: 0, width: "100%", height: "100%" }}
               />

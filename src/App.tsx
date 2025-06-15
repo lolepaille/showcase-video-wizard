@@ -9,6 +9,7 @@ import AdminDashboard from "./pages/AdminDashboard";
 import Showcase from "./pages/Showcase";
 import NotFound from "./pages/NotFound";
 import MySubmissions from "./pages/MySubmissions";
+import AuthPage from "./pages/Auth";
 
 const queryClient = new QueryClient();
 

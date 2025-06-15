@@ -2,6 +2,8 @@
 import React, { useRef, useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Camera, Monitor, Presentation, AlertTriangle, RotateCw, Play, Square, RotateCcw } from 'lucide-react';
+// Import the main VideoPreview component for recorded video playback
+import MainVideoPreview from '../VideoPreview';
 
 type RecordingMode = 'camera' | 'screen' | 'both';
 
@@ -54,41 +56,53 @@ const VideoPreview: React.FC<VideoPreviewProps> = ({
   const safeTime = Math.max(0, Math.min(recordingTime, 120));
   const isActive = !!(cameraStream || screenStream || (recordedBlob && !isRecording));
 
-  // Local state for playback of the recorded video
-  const [playUrl, setPlayUrl] = useState<string | null>(null);
-
-  // On recording done, switch videoRef from srcObject to blob URL
+  // For live recording, set up the video stream
   useEffect(() => {
-    if (videoRef.current) {
-      if (recordedBlob && !isRecording) {
-        // revoke previous
-        if (playUrl) URL.revokeObjectURL(playUrl);
-        const url = URL.createObjectURL(recordedBlob);
-        setPlayUrl(url);
-        videoRef.current.srcObject = null;
-        videoRef.current.src = url;
-        videoRef.current.muted = false; // allow audio on preview
-      } else if ((cameraStream || screenStream) && isRecording) {
-        // live, show stream
-        videoRef.current.srcObject = cameraStream || screenStream || null;
-        videoRef.current.src = '';
-        videoRef.current.muted = true;
-      } else {
-        // Not live and no blob, clear video
-        if (playUrl) URL.revokeObjectURL(playUrl);
-        setPlayUrl(null);
-        videoRef.current.srcObject = null;
-        videoRef.current.src = '';
+    if (videoRef.current && isRecording) {
+      if (recordingMode === 'camera' && cameraStream) {
+        videoRef.current.srcObject = cameraStream;
+      } else if (recordingMode === 'screen' && screenStream) {
+        videoRef.current.srcObject = screenStream;
+      } else if (recordingMode === 'both' && screenStream) {
+        videoRef.current.srcObject = screenStream;
       }
     }
-    // Cleanup blob URL on unmount or blob change
-    return () => {
-      if (playUrl) URL.revokeObjectURL(playUrl);
-    };
-    // do NOT include videoRef in deps, only run on changes
-    // eslint-disable-next-line
-  }, [recordedBlob, isRecording, cameraStream, screenStream]);
+  }, [isRecording, cameraStream, screenStream, recordingMode]);
 
+  // If we have a recorded blob and not recording, use the main VideoPreview component
+  if (recordedBlob && !isRecording) {
+    return (
+      <div className="space-y-4">
+        <MainVideoPreview videoBlob={recordedBlob} />
+        
+        {/* Action buttons for recorded video */}
+        {showControlsOverlay && (
+          <div className="flex justify-center gap-4">
+            <Button
+              onClick={onPlayPreview}
+              size="lg"
+              variant="outline"
+              className="px-6"
+            >
+              <Play className="h-5 w-5 mr-2" />
+              Preview
+            </Button>
+            <Button
+              onClick={onResetRecording}
+              size="lg"
+              variant="outline"
+              className="px-6"
+            >
+              <RotateCcw className="h-5 w-5 mr-2" />
+              Re-record
+            </Button>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // For live recording or before recording
   return (
     <div className="relative bg-black rounded-lg overflow-hidden aspect-video max-w-2xl mx-auto">
       <video
@@ -96,7 +110,6 @@ const VideoPreview: React.FC<VideoPreviewProps> = ({
         autoPlay={isRecording}
         muted={isRecording}
         playsInline
-        controls={!!(recordedBlob && !isRecording)}
         className="w-full h-full object-cover"
       />
 
@@ -195,30 +208,6 @@ const VideoPreview: React.FC<VideoPreviewProps> = ({
               <Square className="h-5 w-5 mr-2" />
               Stop Recording
             </Button>
-          )}
-
-          {/* Finished: Preview / Reset */}
-          {recordedBlob && !isRecording && (
-            <div className="flex gap-4 pointer-events-auto">
-              <Button
-                onClick={onPlayPreview}
-                size="lg"
-                variant="outline"
-                className="px-6"
-              >
-                <Play className="h-5 w-5 mr-2" />
-                Preview
-              </Button>
-              <Button
-                onClick={onResetRecording}
-                size="lg"
-                variant="outline"
-                className="px-6"
-              >
-                <RotateCcw className="h-5 w-5 mr-2" />
-                Re-record
-              </Button>
-            </div>
           )}
           </div>
         </div>

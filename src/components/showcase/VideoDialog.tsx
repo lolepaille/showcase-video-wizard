@@ -11,11 +11,11 @@ interface VideoDialogProps {
   onVideoEnd: () => void;
 }
 
-const VideoDialog: React.FC<VideoDialogProps> = ({ 
-  submission, 
-  isOpen, 
-  onClose, 
-  onVideoEnd 
+const VideoDialog: React.FC<VideoDialogProps> = ({
+  submission,
+  isOpen,
+  onClose,
+  onVideoEnd
 }) => {
   const videoRef = useRef<HTMLVideoElement>(null);
 
@@ -60,21 +60,27 @@ const VideoDialog: React.FC<VideoDialogProps> = ({
     };
     // Only re-run if a different video is selected
     // eslint-disable-next-line
-  }, [submission?.video_url, startTime, endTime]); 
+  }, [submission?.video_url, startTime, endTime]);
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
       <DialogContent
         className="
-          max-w-4xl 
-          w-full 
-          h-[80vh] 
-          p-0 
-          relative 
+          max-w-4xl
+          w-full
+          h-[80vh]
+          p-0
+          relative
           overflow-hidden
           sm:rounded-xl
+          left-1/2 
+          -translate-x-1/2
+          top-8 sm:top-14
+          !translate-y-0
         "
-        // Remove custom style and top override to use default vertical centering
+        style={{
+          position: 'fixed',
+        }}
       >
         {submission && (
           <div className="relative w-full h-full bg-black">
@@ -130,3 +136,4 @@ const VideoDialog: React.FC<VideoDialogProps> = ({
 };
 
 export default VideoDialog;
+

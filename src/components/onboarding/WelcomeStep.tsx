@@ -1,14 +1,13 @@
-
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import type { SubmissionData } from '@/pages/Index';
-
 import NameEmailFields from './fields/NameEmailFields';
 import TitleField from './fields/TitleField';
 import ClusterField from './fields/ClusterField';
 import ProfilePictureField from './fields/ProfilePictureField';
 import WelcomeInfoBox from './WelcomeInfoBox';
+import { supabase } from "@/integrations/supabase/client";
 
 interface WelcomeStepProps {
   onNext: () => void;
@@ -19,10 +18,37 @@ interface WelcomeStepProps {
 const WelcomeStep: React.FC<WelcomeStepProps> = ({ onNext, data, updateData }) => {
   const [registering, setRegistering] = useState(false);
   const [registerError, setRegisterError] = useState<string | null>(null);
+  const [checkingEmail, setCheckingEmail] = useState(false);
+  const [alreadySubmitted, setAlreadySubmitted] = useState(false);
+  const [emailChecked, setEmailChecked] = useState('');
 
   function validateEmail(email: string) {
     return /\S+@\S+\.\S+/.test(email);
   }
+
+  // Check if email already exists
+  useEffect(() => {
+    const checkEmail = async () => {
+      if (validateEmail(data.email)) {
+        setCheckingEmail(true);
+        const { data: found, error } = await supabase
+          .from('submissions')
+          .select('id')
+          .eq('email', data.email)
+          .limit(1);
+        setAlreadySubmitted(found?.length > 0);
+        setEmailChecked(data.email);
+        setCheckingEmail(false);
+      } else {
+        setAlreadySubmitted(false);
+        setEmailChecked('');
+      }
+    };
+
+    if (data.email) {
+      checkEmail();
+    }
+  }, [data.email]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -35,7 +61,6 @@ const WelcomeStep: React.FC<WelcomeStepProps> = ({ onNext, data, updateData }) =
       setRegistering(true);
       setRegisterError(null);
       try {
-        // The only "registration" is local validation. No user account is created.
         onNext();
       } catch (err: any) {
         setRegisterError("Unknown error occurred. Please try again.");
@@ -76,12 +101,11 @@ const WelcomeStep: React.FC<WelcomeStepProps> = ({ onNext, data, updateData }) =
               fullName={data.fullName}
               email={data.email}
               updateData={updateData}
-              emailChecked={""}
-              alreadySubmitted={false}
-              checkingEmail={false}
+              emailChecked={emailChecked}
+              alreadySubmitted={alreadySubmitted}
+              checkingEmail={checkingEmail}
               validateEmail={validateEmail}
             />
-
             <TitleField title={data.title} updateData={updateData} />
             <ClusterField value={data.cluster} updateData={updateData} />
             <ProfilePictureField profilePicture={data.profilePicture} updateData={updateData} />

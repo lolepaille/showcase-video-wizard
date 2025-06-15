@@ -1,10 +1,8 @@
-
 import React from "react";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { AlertTriangle } from "lucide-react";
 import type { SubmissionData } from "@/pages/Index";
-import { supabase } from "@/integrations/supabase/client";
 
 interface Props {
   fullName: string;
@@ -69,16 +67,7 @@ const NameEmailFields: React.FC<Props> = ({
               Submission already received!
             </p>
             <p className="text-amber-800 text-sm">
-              Our records show a submission with this email. If you need to replace your video or update your profile, please contact{' '}
-              <a
-                href="mailto:dmd.cove@rmit.edu.au"
-                className="underline text-blue-700 hover:text-blue-900"
-                target="_blank"
-                rel="noopener noreferrer"
-              >
-                dmd.cove@rmit.edu.au
-              </a>
-              .
+              Our records show a submission with this email. If you submit again, it will override your previous entry (latest submission is shown in the showcase).
             </p>
           </div>
         </div>

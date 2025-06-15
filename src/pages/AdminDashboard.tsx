@@ -361,6 +361,47 @@ const AdminDashboard = () => {
     setViewingVideo(submission);
   };
 
+  const exportSubmissionsToCSV = () => {
+    // Only export fields useful for data consumption.
+    const columns = [
+      "id", "full_name", "email", "title", "cluster", "profile_picture_url", "video_url",
+      "is_published", "created_at"
+    ];
+
+    // CSV header
+    const csvHeader = columns.join(",") + "\n";
+
+    // Data rows
+    const csvRows = filteredAndSortedSubmissions.map(sub => 
+      columns.map(field => {
+        let val = sub[field as keyof typeof sub];
+        // Stringify and clean value
+        if (typeof val === "string") {
+          // Escape quotes and commas in strings
+          val = '"' + val.replace(/"/g, '""') + '"';
+        } else if (typeof val === "boolean") {
+          val = val ? "TRUE" : "FALSE";
+        } else if (val === null || val === undefined) {
+          val = "";
+        }
+        return val;
+      }).join(",")
+    );
+    
+    const csvContent = csvHeader + csvRows.join("\n");
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `submissions_export_${new Date().toISOString().slice(0, 10)}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(() => {
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }, 0);
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -400,6 +441,10 @@ const AdminDashboard = () => {
             <Button variant="outline" onClick={() => navigate('/showcase')}>
               <Eye className="h-4 w-4 mr-2" />
               View Showcase
+            </Button>
+            {/* New Export CSV Button */}
+            <Button variant="outline" onClick={exportSubmissionsToCSV}>
+              Export CSV
             </Button>
             <Dialog open={showAddForm} onOpenChange={setShowAddForm}>
               <DialogTrigger asChild>

@@ -2,8 +2,8 @@
 import React, { useRef, useEffect, useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Camera, Monitor, Presentation, AlertTriangle, RotateCw, Play, Square, RotateCcw } from 'lucide-react';
-// Import the main VideoPreview component for recorded video playback
-import MainVideoPreview from '../VideoPreview';
+// Import the simple preview component
+import SimpleVideoPreview from '../SimpleVideoPreview';
 
 type RecordingMode = 'camera' | 'screen' | 'both';
 
@@ -69,36 +69,13 @@ const VideoPreview: React.FC<VideoPreviewProps> = ({
     }
   }, [isRecording, cameraStream, screenStream, recordingMode]);
 
-  // If we have a recorded blob and not recording, use the main VideoPreview component
+  // If we have a recorded blob and not recording, use the simple preview component
   if (recordedBlob && !isRecording) {
     return (
-      <div className="space-y-4">
-        <MainVideoPreview videoBlob={recordedBlob} />
-        
-        {/* Action buttons for recorded video */}
-        {showControlsOverlay && (
-          <div className="flex justify-center gap-4">
-            <Button
-              onClick={onPlayPreview}
-              size="lg"
-              variant="outline"
-              className="px-6"
-            >
-              <Play className="h-5 w-5 mr-2" />
-              Preview
-            </Button>
-            <Button
-              onClick={onResetRecording}
-              size="lg"
-              variant="outline"
-              className="px-6"
-            >
-              <RotateCcw className="h-5 w-5 mr-2" />
-              Re-record
-            </Button>
-          </div>
-        )}
-      </div>
+      <SimpleVideoPreview 
+        videoBlob={recordedBlob} 
+        onReRecord={onResetRecording}
+      />
     );
   }
 

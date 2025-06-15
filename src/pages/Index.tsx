@@ -109,7 +109,7 @@ const Index = () => {
           {renderCurrentStep()}
         </div>
       </div>
-      {/* Footer with navigation links */}
+      {/* Footer with navigation links - removed user submissions link */}
       <footer className="w-full border-t bg-white/80 py-4 mt-8 backdrop-blur flex flex-col md:flex-row items-center justify-between gap-5">
         <a 
           href="/admin/dashboard" 

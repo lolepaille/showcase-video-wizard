@@ -1,3 +1,4 @@
+
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -8,8 +9,8 @@ import AdminLogin from "./pages/AdminLogin";
 import AdminDashboard from "./pages/AdminDashboard";
 import Showcase from "./pages/Showcase";
 import NotFound from "./pages/NotFound";
-import MySubmissions from "./pages/MySubmissions";
-import AuthPage from "./pages/Auth";
+// Removed: import MySubmissions from "./pages/MySubmissions";
+// Removed: import AuthPage from "./pages/Auth";
 
 const queryClient = new QueryClient();
 
@@ -21,8 +22,7 @@ const App = () => (
       <BrowserRouter>
         <Routes>
           <Route path="/" element={<Index />} />
-          <Route path="/auth" element={<AuthPage />} />
-          <Route path="/mysubmissions" element={<MySubmissions />} />
+          {/* Removed /auth and /mysubmissions routes */}
           <Route path="/admin" element={<AdminLogin />} />
           <Route path="/admin/dashboard" element={<AdminDashboard />} />
           <Route path="/showcase" element={<Showcase />} />

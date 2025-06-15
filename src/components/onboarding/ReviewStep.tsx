@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -112,7 +111,7 @@ const ReviewStep: React.FC<ReviewStepProps> = ({ onNext, onPrev, data, updateDat
         videoUrl = await uploadViaFunction(videoFile, 'upload-video');
       }
 
-      // Prepare submission data with user_id = null (anonymous)
+      // Prepare submission data for anonymous submissions - user_id removed
       const submissionData = {
         full_name: data.fullName,
         email: data.email,
@@ -121,13 +120,13 @@ const ReviewStep: React.FC<ReviewStepProps> = ({ onNext, onPrev, data, updateDat
         profile_picture_url: profilePictureUrl,
         video_url: videoUrl,
         notes: data.notes,
-        is_published: false,
-        user_id: null, // Always null for anonymous
+        is_published: false
+        // Removed: user_id (column doesn't exist)
       };
 
       console.log('Inserting submission data:', submissionData);
 
-      // Insert submission to database
+      // Insert submission to database - no user_id
       const { data: insertedData, error: insertError } = await supabase
         .from('submissions')
         .insert(submissionData)

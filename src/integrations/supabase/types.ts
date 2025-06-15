@@ -42,7 +42,6 @@ export type Database = {
           profile_picture_url: string | null
           title: string | null
           updated_at: string | null
-          user_id: string | null
           video_url: string | null
         }
         Insert: {
@@ -56,7 +55,6 @@ export type Database = {
           profile_picture_url?: string | null
           title?: string | null
           updated_at?: string | null
-          user_id?: string | null
           video_url?: string | null
         }
         Update: {
@@ -70,7 +68,6 @@ export type Database = {
           profile_picture_url?: string | null
           title?: string | null
           updated_at?: string | null
-          user_id?: string | null
           video_url?: string | null
         }
         Relationships: []

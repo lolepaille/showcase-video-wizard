@@ -3,10 +3,10 @@ import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { CheckCircle } from 'lucide-react';
 import ContactInformation from './ContactInformation';
-import VideoPreview from './VideoPreview';
 import QualityChecklist from './QualityChecklist';
 import type { SubmissionData, ClusterType } from '@/pages/Index';
 
+// Accept new hideVideoPreview prop for conditional video rendering
 interface QualityChecked {
   audioVisual: boolean;
   questionsAddressed: boolean;
@@ -18,13 +18,15 @@ interface SubmissionFormProps {
   qualityChecked: QualityChecked;
   onContactChange: (field: string, value: string | ClusterType) => void;
   onQualityCheck: (key: keyof QualityChecked, checked: boolean) => void;
+  hideVideoPreview?: boolean; // new prop, optional
 }
 
 const SubmissionForm: React.FC<SubmissionFormProps> = ({
   data,
   qualityChecked,
   onContactChange,
-  onQualityCheck
+  onQualityCheck,
+  hideVideoPreview = false
 }) => {
   return (
     <Card className="border-0 shadow-xl bg-white/95 backdrop-blur">
@@ -64,7 +66,8 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({
           </div>
         )}
 
-        <VideoPreview videoBlob={data.videoBlob} />
+        {/* Remove duplicate VideoPreview here */}
+        {/* {!hideVideoPreview && <VideoPreview videoBlob={data.videoBlob} />} */}
 
         <QualityChecklist 
           checklist={qualityChecked}

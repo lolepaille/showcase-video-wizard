@@ -1,7 +1,6 @@
 
 import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { CheckCircle, Upload, AlertCircle, Play, Replace } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
@@ -72,8 +71,6 @@ const ReviewStep: React.FC<ReviewStepProps> = ({ onNext, onPrev, data, updateDat
     }
   };
 
-  // REMOVED: getLocalUserId & user_id fetching
-
   const handleSubmit = async () => {
     if (!canSubmit()) {
       toast({
@@ -97,7 +94,6 @@ const ReviewStep: React.FC<ReviewStepProps> = ({ onNext, onPrev, data, updateDat
       let profilePictureUrl = null;
       let videoUrl = null;
 
-      // Upload profile picture with backend API if provided
       if (data.profilePicture) {
         console.log('Uploading profile picture...');
         profilePictureUrl = await uploadViaFunction(
@@ -106,14 +102,12 @@ const ReviewStep: React.FC<ReviewStepProps> = ({ onNext, onPrev, data, updateDat
         );
       }
 
-      // Upload video with backend API if provided
       if (data.videoBlob) {
         console.log('Uploading video blob...');
         const videoFile = new File([data.videoBlob], 'video.webm', { type: 'video/webm' });
         videoUrl = await uploadViaFunction(videoFile, 'upload-video');
       }
 
-      // Prepare submission data for anonymous submissions - user_id removed
       const submissionData = {
         full_name: data.fullName,
         email: data.email,
@@ -123,12 +117,10 @@ const ReviewStep: React.FC<ReviewStepProps> = ({ onNext, onPrev, data, updateDat
         video_url: videoUrl,
         notes: data.notes,
         is_published: false
-        // Removed: user_id (column doesn't exist)
       };
 
       console.log('Inserting submission data:', submissionData);
 
-      // Insert submission to database - no user_id
       const { data: insertedData, error: insertError } = await supabase
         .from('submissions')
         .insert(submissionData)
@@ -168,13 +160,13 @@ const ReviewStep: React.FC<ReviewStepProps> = ({ onNext, onPrev, data, updateDat
 
   // Replace video handler
   const handleReplaceVideo = () => {
-    // Remove recorded video from submission data and go back to recording step
     updateData({ videoBlob: undefined });
-    onPrev(); // Should send user back to Record step
+    onPrev();
   };
 
   return (
     <div className="space-y-8">
+      {/* Only show the video preview up here, with controls */}
       {data.videoBlob && (
         <div className="space-y-2 mb-6">
           <div className="flex items-center justify-between gap-2">
@@ -197,11 +189,13 @@ const ReviewStep: React.FC<ReviewStepProps> = ({ onNext, onPrev, data, updateDat
         </div>
       )}
 
+      {/* All the rest (no video preview in SubmissionForm now) */}
       <SubmissionForm
         data={data}
         qualityChecked={qualityChecked}
         onContactChange={handleContactChange}
         onQualityCheck={handleQualityCheck}
+        hideVideoPreview={true}
       />
 
       <div className="flex justify-between items-center">

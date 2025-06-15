@@ -30,6 +30,31 @@ export const useRecording = ({ updateData, data }: UseRecordingProps) => {
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const animationRef = useRef<number | null>(null);
 
+  // Helper to process chunks into File for ultimate compatibility
+  const processRecordedBlob = useCallback((blob: Blob) => {
+    // Always create a File object, even if not directly used for uploads.
+    const videoFile = new File([blob], "video.webm", { type: "video/webm" });
+    // Force update both blob and File in SubmissionData for flow equivalence
+    setRecordedBlob(blob);
+    updateData({ videoBlob: videoFile });
+    console.log("[Recording] processRecordedBlob set videoBlob:", videoFile);
+  }, [updateData]);
+
+  // FIX: Define mediaRecorderOnStop at the top level
+  const mediaRecorderOnStop = useCallback(() => {
+    if (chunksRef.current.length > 0) {
+      const blob = new Blob(chunksRef.current, { type: 'video/webm' });
+      processRecordedBlob(blob);
+      if (videoRef.current) {
+        videoRef.current.srcObject = null;
+        videoRef.current.src = URL.createObjectURL(blob);
+      }
+      if (pipVideoRef.current) {
+        pipVideoRef.current.srcObject = null;
+      }
+    }
+  }, [processRecordedBlob, videoRef, pipVideoRef, chunksRef]);
+
   const stopRecording = useCallback(() => {
     if (mediaRecorderRef.current && isRecording) {
       mediaRecorderRef.current.stop();
@@ -223,20 +248,7 @@ export const useRecording = ({ updateData, data }: UseRecordingProps) => {
         }
       };
 
-      const mediaRecorderOnStop = useCallback(() => {
-        if (chunksRef.current.length > 0) {
-          const blob = new Blob(chunksRef.current, { type: 'video/webm' });
-          processRecordedBlob(blob);
-          if (videoRef.current) {
-            videoRef.current.srcObject = null;
-            videoRef.current.src = URL.createObjectURL(blob);
-          }
-          if (pipVideoRef.current) {
-            pipVideoRef.current.srcObject = null;
-          }
-        }
-      }, [processRecordedBlob, videoRef, pipVideoRef]);
-
+      // Use the correct, top-level callback for onstop
       mediaRecorder.onstop = mediaRecorderOnStop;
 
       mediaRecorder.start();
@@ -258,17 +270,7 @@ export const useRecording = ({ updateData, data }: UseRecordingProps) => {
       console.error('[Recording] Error starting recording:', err);
       setError('Could not access camera and/or screen. Please check your permissions.');
     }
-  }, [updateData, recordingMode, isMobile, cameraFacing, stopRecording]);
-
-  // NEW: Helper to process chunks into File for ultimate compatibility
-  const processRecordedBlob = useCallback((blob: Blob) => {
-    // Always create a File object, even if not directly used for uploads.
-    const videoFile = new File([blob], "video.webm", { type: "video/webm" });
-    // Force update both blob and File in SubmissionData for flow equivalence
-    setRecordedBlob(blob);
-    updateData({ videoBlob: videoFile });
-    console.log("[Recording] processRecordedBlob set videoBlob:", videoFile);
-  }, [updateData]);
+  }, [updateData, recordingMode, isMobile, cameraFacing, stopRecording, processRecordedBlob, mediaRecorderOnStop]);
 
   const resetRecording = useCallback(() => {
     setRecordedBlob(null);

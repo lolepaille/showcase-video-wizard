@@ -169,22 +169,20 @@ const ReviewStep: React.FC<ReviewStepProps> = ({ onNext, onPrev, data, updateDat
       {/* Only show the video preview up here, with controls */}
       {data.videoBlob && (
         <div className="space-y-2 mb-6">
-          <div className="flex items-center justify-between gap-2">
-            <div className="font-semibold text-lg flex items-center gap-2">
-              <Play className="h-5 w-5" />
-              Video Preview
-            </div>
+          <h3 className="text-lg font-semibold flex items-center gap-2">
+            <Play className="h-5 w-5" />
+            Video Preview
             <Button 
               size="sm"
               variant="secondary"
-              className="flex items-center gap-1"
+              className="flex items-center gap-1 ml-3"
               onClick={handleReplaceVideo}
               type="button"
             >
               <Replace className="h-4 w-4" />
               Replace Video
             </Button>
-          </div>
+          </h3>
           <VideoPreview videoBlob={data.videoBlob} />
         </div>
       )}

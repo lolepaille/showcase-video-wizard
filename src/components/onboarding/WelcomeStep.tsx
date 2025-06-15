@@ -81,11 +81,11 @@ const WelcomeStep: React.FC<WelcomeStepProps> = ({ onNext, data, updateData }) =
     <div className="max-w-2xl mx-auto">
       <Card className="border-0 shadow-xl bg-white/95 backdrop-blur">
         <CardHeader className="text-center pb-6">
-          <div className="mx-auto mb-4 p-3 bg-gradient-to-r from-blue-600 to-red-600 rounded-full w-16 h-16 flex items-center justify-center overflow-hidden">
+          <div className="mx-auto mb-4">
             <img 
               src="https://upload.wikimedia.org/wikipedia/commons/5/51/RMIT_University_Logo.svg" 
               alt="RMIT Logo"
-              className="w-10 h-10 object-contain filter brightness-0 invert"
+              className="w-16 h-16 object-contain mx-auto"
             />
           </div>
           <CardTitle className="text-3xl font-bold bg-gradient-to-r from-blue-600 to-red-600 bg-clip-text text-transparent">

@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -62,6 +63,13 @@ const RequirementsStep: React.FC<RequirementsStepProps> = ({ onNext, onPrev }) =
     setCheckedItems(newChecked);
   };
 
+  const handleKeyDown = (id: string, checked: boolean) => (e: React.KeyboardEvent<HTMLButtonElement>) => {
+    if (e.key === ' ' || e.key === 'Enter') {
+      e.preventDefault();
+      handleCheck(id, !checked);
+    }
+  };
+
   const allChecked = checkedItems.size === requirements.length;
 
   return (
@@ -81,41 +89,57 @@ const RequirementsStep: React.FC<RequirementsStepProps> = ({ onNext, onPrev }) =
               const isChecked = checkedItems.has(req.id);
               
               return (
-                <Card key={req.id} className={`transition-all duration-200 ${isChecked ? 'ring-2 ring-green-500 bg-green-50' : 'hover:shadow-md'}`}>
-                  <CardContent className="p-4">
-                    <div className="flex items-start gap-3">
-                      <Checkbox
-                        id={req.id}
-                        checked={isChecked}
-                        onCheckedChange={(checked) => handleCheck(req.id, checked as boolean)}
-                        className="mt-1"
-                      />
-                      <div className="flex-1">
-                        <div className="flex items-center gap-2 mb-2">
-                          <Icon className="h-5 w-5 text-blue-600" />
-                          <h3 className="font-semibold">{req.title}</h3>
-                        </div>
-                        <p className="text-sm text-muted-foreground mb-3">{req.description}</p>
-                        
-                        <div className="space-y-2">
-                          <div className="flex items-center gap-2 text-xs">
-                            <AlertCircle className="h-3 w-3 text-blue-500" />
-                            <span className="text-blue-700">{req.tips}</span>
+                <button
+                  key={req.id}
+                  type="button"
+                  role="checkbox"
+                  aria-checked={isChecked}
+                  aria-label={`${req.title}: ${req.description}`}
+                  tabIndex={0}
+                  className={`w-full text-left transition-all duration-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 ${
+                    isChecked ? 'ring-2 ring-green-500' : 'hover:shadow-md'
+                  }`}
+                  onClick={() => handleCheck(req.id, !isChecked)}
+                  onKeyDown={handleKeyDown(req.id, isChecked)}
+                >
+                  <Card className={`${isChecked ? 'bg-green-50' : ''}`}>
+                    <CardContent className="p-4">
+                      <div className="flex items-start gap-3">
+                        <span aria-hidden className="mt-1">
+                          <Checkbox
+                            id={req.id}
+                            checked={isChecked}
+                            tabIndex={-1}
+                            className="pointer-events-none"
+                          />
+                        </span>
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2 mb-2">
+                            <Icon className="h-5 w-5 text-blue-600" />
+                            <h3 className="font-semibold">{req.title}</h3>
                           </div>
+                          <p className="text-sm text-muted-foreground mb-3">{req.description}</p>
                           
-                          <div className="flex flex-wrap gap-1">
-                            <Badge variant="outline" className="text-xs bg-green-50 text-green-700 border-green-200">
-                              ✓ {req.good}
-                            </Badge>
-                            <Badge variant="outline" className="text-xs bg-red-50 text-red-700 border-red-200">
-                              ✗ {req.bad}
-                            </Badge>
+                          <div className="space-y-2">
+                            <div className="flex items-center gap-2 text-xs">
+                              <AlertCircle className="h-3 w-3 text-blue-500" />
+                              <span className="text-blue-700">{req.tips}</span>
+                            </div>
+                            
+                            <div className="flex flex-wrap gap-1">
+                              <Badge variant="outline" className="text-xs bg-green-50 text-green-700 border-green-200">
+                                ✓ {req.good}
+                              </Badge>
+                              <Badge variant="outline" className="text-xs bg-red-50 text-red-700 border-red-200">
+                                ✗ {req.bad}
+                              </Badge>
+                            </div>
                           </div>
                         </div>
                       </div>
-                    </div>
-                  </CardContent>
-                </Card>
+                    </CardContent>
+                  </Card>
+                </button>
               );
             })}
           </div>

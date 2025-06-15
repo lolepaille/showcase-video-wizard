@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -66,7 +65,13 @@ const WelcomeStep: React.FC<WelcomeStepProps> = ({ onNext, data, updateData }) =
     return /\S+@\S+\.\S+/.test(email);
   }
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const [backendUserId, setBackendUserId] = useState<string | null>(null);
+
+  // Add loading/error UI for registration
+  const [registering, setRegistering] = useState(false);
+  const [registerError, setRegisterError] = useState<string | null>(null);
+
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (
       data.fullName.trim() &&
@@ -74,7 +79,34 @@ const WelcomeStep: React.FC<WelcomeStepProps> = ({ onNext, data, updateData }) =
       data.cluster &&
       !alreadySubmitted
     ) {
-      onNext();
+      // Register user via edge function (does not force sign in)
+      setRegistering(true);
+      setRegisterError(null);
+      try {
+        const response = await fetch("/functions/v1/register-user", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            email: data.email.trim(),
+            fullName: data.fullName.trim(),
+            cluster: data.cluster,
+            title: data.title?.trim() || undefined,
+          }),
+        });
+
+        const result = await response.json();
+        if (!response.ok) {
+          throw new Error(result.error || "Failed to register user");
+        }
+        setBackendUserId(result.user_id);
+        // Save userId in localStorage/session for later submission
+        window.localStorage.setItem("registered_user_id", result.user_id);
+        onNext();
+      } catch (err: any) {
+        setRegisterError(err.message);
+      } finally {
+        setRegistering(false);
+      }
     }
   };
 
@@ -249,10 +281,13 @@ const WelcomeStep: React.FC<WelcomeStepProps> = ({ onNext, data, updateData }) =
             <Button 
               type="submit" 
               className="w-full h-12 text-lg bg-gradient-to-r from-blue-600 to-red-600 hover:from-blue-700 hover:to-red-700"
-              disabled={!isFormValid}
+              disabled={!isFormValid || registering}
             >
-              Let's Get Started
+              {registering ? "Registering..." : "Let's Get Started"}
             </Button>
+            {registerError && (
+              <div className="text-red-600 text-center mt-2">{registerError}</div>
+            )}
           </form>
         </CardContent>
       </Card>
@@ -262,3 +297,4 @@ const WelcomeStep: React.FC<WelcomeStepProps> = ({ onNext, data, updateData }) =
 
 export default WelcomeStep;
 
+// NOTE: src/components/onboarding/WelcomeStep.tsx is getting quite long. Consider asking me to refactor soon!

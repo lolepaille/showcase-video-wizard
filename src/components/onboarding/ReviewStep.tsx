@@ -70,10 +70,10 @@ const ReviewStep: React.FC<ReviewStepProps> = ({ onNext, onPrev, data, updateDat
     }
   };
 
-  // ADD: Get current user's ID (auth required for RLS)
-  const user = supabase.auth.getUser && supabase.auth.getUser();
-  // This will give a promise, so let's just guard in handleSubmit
-  // We'll fetch user id on submit
+  // Find user ID created from WelcomeStep (never triggers login)
+  const getLocalUserId = () => {
+    return window.localStorage.getItem("registered_user_id");
+  };
 
   const handleSubmit = async () => {
     if (!canSubmit()) {
@@ -95,11 +95,14 @@ const ReviewStep: React.FC<ReviewStepProps> = ({ onNext, onPrev, data, updateDat
     });
 
     try {
-      // ADD: fetch the authenticated user
-      const { data: authData, error: authError } = await supabase.auth.getUser();
-      if (authError || !authData?.user) {
-        throw new Error("You must be signed in.");
+      // Get the user ID from localStorage, else fallback to fetching user from supabase.auth
+      let userId = getLocalUserId();
+      if (!userId) {
+        // fallback to auth if not found (should not happen unless user cleared storage)
+        const { data: authData } = await supabase.auth.getUser();
+        userId = authData?.user?.id;
       }
+      if (!userId) throw new Error("No user ID found. Please start again.");
 
       let profilePictureUrl = null;
       let videoUrl = null;
@@ -130,7 +133,7 @@ const ReviewStep: React.FC<ReviewStepProps> = ({ onNext, onPrev, data, updateDat
         video_url: videoUrl,
         notes: data.notes,
         is_published: false,
-        user_id: authData.user.id, // <--- IMPORTANT
+        user_id: userId, // Use the user ID created in WelcomeStep
       };
 
       console.log('Inserting submission data:', submissionData);
@@ -224,3 +227,5 @@ const ReviewStep: React.FC<ReviewStepProps> = ({ onNext, onPrev, data, updateDat
 };
 
 export default ReviewStep;
+
+// NOTE: src/components/onboarding/ReviewStep.tsx is long. Consider asking me to refactor soon!

@@ -1,7 +1,7 @@
 
 import React from 'react';
 import { Button } from '@/components/ui/button';
-import { Camera, Monitor, Presentation, AlertTriangle, RotateCw } from 'lucide-react';
+import { Camera, Monitor, Presentation, AlertTriangle, RotateCw, Play, Square, RotateCcw } from 'lucide-react';
 
 type RecordingMode = 'camera' | 'screen' | 'both';
 
@@ -16,6 +16,13 @@ interface VideoPreviewProps {
   recordingTime: number;
   showRotateOverlay: boolean;
   onRotateOverlayClose: () => void;
+  // Overlay action buttons
+  onStartRecording?: () => void;
+  onStopRecording?: () => void;
+  onPlayPreview?: () => void;
+  onResetRecording?: () => void;
+  showControlsOverlay?: boolean;
+  disableStart?: boolean;
 }
 
 const formatTime = (seconds: number) => {
@@ -35,10 +42,18 @@ const VideoPreview: React.FC<VideoPreviewProps> = ({
   isRecording,
   recordingTime,
   showRotateOverlay,
-  onRotateOverlayClose
+  onRotateOverlayClose,
+  onStartRecording,
+  onStopRecording,
+  onPlayPreview,
+  onResetRecording,
+  showControlsOverlay,
+  disableStart,
 }) => {
-  // Recording time fix: Always clamp timer between 0 and 120 (video limit)
+  // Timer clamp
   const safeTime = Math.max(0, Math.min(recordingTime, 120));
+  const isActive = !!(cameraStream || screenStream || recordedBlob);
+
   return (
     <div className="relative bg-black rounded-lg overflow-hidden aspect-video max-w-2xl mx-auto">
       <video
@@ -49,7 +64,7 @@ const VideoPreview: React.FC<VideoPreviewProps> = ({
         className="w-full h-full object-cover"
       />
 
-      {/* Picture-in-Picture overlay for camera when recording both */}
+      {/* PiP overlay for "both" mode */}
       {recordingMode === 'both' && (cameraStream || isRecording) && (
         <div className="absolute bottom-4 right-4 w-32 h-24 border-2 border-white rounded-lg overflow-hidden">
           <video
@@ -62,7 +77,7 @@ const VideoPreview: React.FC<VideoPreviewProps> = ({
         </div>
       )}
 
-      {/* Rotate Device Overlay */}
+      {/* Overlay: Rotate device for mobile portrait */}
       {showRotateOverlay && (
         <div className="absolute inset-0 bg-black/90 flex items-center justify-center z-10">
           <div className="text-center text-white p-8">
@@ -87,7 +102,8 @@ const VideoPreview: React.FC<VideoPreviewProps> = ({
         </div>
       )}
 
-      {!cameraStream && !screenStream && !recordedBlob && !showRotateOverlay && (
+      {/* Overlay: Before starting - no streams */}
+      {!isActive && !showRotateOverlay && (
         <div className="absolute inset-0 flex items-center justify-center bg-gray-900">
           <div className="text-center text-white">
             {recordingMode === 'camera' && <Camera className="h-12 w-12 mx-auto mb-4 opacity-50" />}
@@ -98,6 +114,7 @@ const VideoPreview: React.FC<VideoPreviewProps> = ({
         </div>
       )}
 
+      {/* Overlay: Timer */}
       {isRecording && (
         <div className="absolute top-4 left-4 bg-red-600 text-white px-3 py-1 rounded-full flex items-center gap-2">
           <div className="w-2 h-2 bg-white rounded-full animate-pulse" />
@@ -105,9 +122,69 @@ const VideoPreview: React.FC<VideoPreviewProps> = ({
         </div>
       )}
 
+      {/* Overlay: End in 10s warning */}
       {isRecording && safeTime >= 110 && safeTime <= 120 && (
         <div className="absolute bottom-4 left-4 right-4 bg-amber-600 text-white px-3 py-2 rounded text-center">
           <span className="font-medium">10 seconds remaining!</span>
+        </div>
+      )}
+
+      {/* ACTION BUTTON OVERLAYS */}
+      {showControlsOverlay && (
+        <div className="absolute inset-0 flex flex-col justify-end items-center pointer-events-none">
+          <div className="pb-8 w-full flex justify-center">
+          {/* Not recording, no blob: START RECORDING */}
+          {!isRecording && !recordedBlob && !showRotateOverlay && (
+            <Button
+              onClick={onStartRecording}
+              size="lg"
+              className="bg-red-600 hover:bg-red-700 text-white px-8 pointer-events-auto"
+              disabled={disableStart}
+            >
+              {recordingMode === 'camera' && <Camera className="h-5 w-5 mr-2" />}
+              {recordingMode === 'screen' && <Monitor className="h-5 w-5 mr-2" />}
+              {recordingMode === 'both' && <Presentation className="h-5 w-5 mr-2" />}
+              Start Recording
+            </Button>
+          )}
+
+          {/* Is recording: Stop button */}
+          {isRecording && (
+            <Button
+              onClick={onStopRecording}
+              size="lg"
+              variant="outline"
+              className="border-red-600 text-red-600 hover:bg-red-50 px-8 pointer-events-auto"
+            >
+              <Square className="h-5 w-5 mr-2" />
+              Stop Recording
+            </Button>
+          )}
+
+          {/* Finished: Preview / Reset */}
+          {recordedBlob && !isRecording && (
+            <div className="flex gap-4 pointer-events-auto">
+              <Button
+                onClick={onPlayPreview}
+                size="lg"
+                variant="outline"
+                className="px-6"
+              >
+                <Play className="h-5 w-5 mr-2" />
+                Preview
+              </Button>
+              <Button
+                onClick={onResetRecording}
+                size="lg"
+                variant="outline"
+                className="px-6"
+              >
+                <RotateCcw className="h-5 w-5 mr-2" />
+                Re-record
+              </Button>
+            </div>
+          )}
+          </div>
         </div>
       )}
     </div>
@@ -115,3 +192,4 @@ const VideoPreview: React.FC<VideoPreviewProps> = ({
 };
 
 export default VideoPreview;
+

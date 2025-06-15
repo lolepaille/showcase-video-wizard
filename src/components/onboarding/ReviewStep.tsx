@@ -164,37 +164,36 @@ const ReviewStep: React.FC<ReviewStepProps> = ({ onNext, onPrev, data, updateDat
     onPrev();
   };
 
+  // ---- Start render ----
+
   return (
     <div className="space-y-8">
-      {/* Show the video preview only once, heading and controls together */}
-      {data.videoBlob && (
-        <div className="mb-6">
-          <VideoPreview
-            videoBlob={data.videoBlob}
-          />
-          <div className="mt-2 flex justify-end">
-            <Button 
-              size="sm"
-              variant="secondary"
-              className="flex items-center gap-1"
-              onClick={handleReplaceVideo}
-              type="button"
-            >
-              <Replace className="h-4 w-4" />
-              Replace Video
-            </Button>
-          </div>
-        </div>
-      )}
-
-      {/* All the rest (no video preview in SubmissionForm now) */}
       <SubmissionForm
         data={data}
         qualityChecked={qualityChecked}
         onContactChange={handleContactChange}
         onQualityCheck={handleQualityCheck}
         hideVideoPreview={true}
-      />
+      >
+        {/* Only show videoPreview if data.videoBlob exists */}
+        {data.videoBlob && (
+          <div className="space-y-4 mt-2">
+            <VideoPreview videoBlob={data.videoBlob} />
+            <div className="flex justify-center gap-4">
+              <Button 
+                size="sm"
+                variant="secondary"
+                className="flex items-center gap-1"
+                onClick={handleReplaceVideo}
+                type="button"
+              >
+                <Replace className="h-4 w-4" />
+                Replace Video
+              </Button>
+            </div>
+          </div>
+        )}
+      </SubmissionForm>
 
       <div className="flex justify-between items-center">
         <Button variant="outline" onClick={onPrev} disabled={isSubmitting}>

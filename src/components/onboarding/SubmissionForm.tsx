@@ -18,7 +18,8 @@ interface SubmissionFormProps {
   qualityChecked: QualityChecked;
   onContactChange: (field: string, value: string | ClusterType) => void;
   onQualityCheck: (key: keyof QualityChecked, checked: boolean) => void;
-  hideVideoPreview?: boolean; // new prop, optional
+  hideVideoPreview?: boolean;
+  children?: React.ReactNode; // <-- NEW
 }
 
 const SubmissionForm: React.FC<SubmissionFormProps> = ({
@@ -26,7 +27,8 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({
   qualityChecked,
   onContactChange,
   onQualityCheck,
-  hideVideoPreview = false
+  hideVideoPreview = false,
+  children,
 }) => {
   return (
     <Card className="border-0 shadow-xl bg-white/95 backdrop-blur">
@@ -52,6 +54,9 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({
           onClusterChange={(value) => onContactChange('cluster', value)}
         />
 
+        {/* NEW: Render children here between info and checklist */}
+        {children}
+
         {data.profilePicture && (
           <div className="space-y-4">
             <h3 className="text-lg font-semibold">Profile Picture</h3>
@@ -66,8 +71,9 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({
           </div>
         )}
 
-        {/* Remove duplicate VideoPreview here */}
-        {/* {!hideVideoPreview && <VideoPreview videoBlob={data.videoBlob} />} */}
+        {/* 
+          VideoPreview is now managed from parent, so always pass hideVideoPreview 
+        */}
 
         <QualityChecklist 
           checklist={qualityChecked}
@@ -79,3 +85,4 @@ const SubmissionForm: React.FC<SubmissionFormProps> = ({
 };
 
 export default SubmissionForm;
+

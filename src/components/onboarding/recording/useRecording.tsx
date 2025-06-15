@@ -1,9 +1,10 @@
+
 import { useState, useRef, useCallback } from 'react';
 import { useIsMobile } from '@/hooks/use-mobile';
 import type { SubmissionData } from '@/pages/Index';
-
-type RecordingMode = 'camera' | 'screen' | 'both';
-type CameraFacing = 'front' | 'back';
+import { useGetCameraStream, useGetScreenStream, RecordingMode, CameraFacing } from './useRecorderStreams';
+import { useCompositingLoop } from './useCompositing';
+import { useRecordingTimer } from './useRecordingTimer';
 
 interface UseRecordingProps {
   updateData: (data: Partial<SubmissionData>) => void;
@@ -11,9 +12,9 @@ interface UseRecordingProps {
 }
 
 export const useRecording = ({ updateData, data }: UseRecordingProps) => {
+  // State
   const [isRecording, setIsRecording] = useState(false);
   const [recordedBlob, setRecordedBlob] = useState<Blob | null>(data.videoBlob || null);
-  const [recordingTime, setRecordingTime] = useState(0);
   const [recordingMode, setRecordingMode] = useState<RecordingMode>('camera');
   const [cameraStream, setCameraStream] = useState<MediaStream | null>(null);
   const [screenStream, setScreenStream] = useState<MediaStream | null>(null);
@@ -21,306 +22,132 @@ export const useRecording = ({ updateData, data }: UseRecordingProps) => {
   const [showRotateOverlay, setShowRotateOverlay] = useState(false);
   const [cameraFacing, setCameraFacing] = useState<CameraFacing>('front');
   const isMobile = useIsMobile();
-  
+
+  // Refs
   const videoRef = useRef<HTMLVideoElement>(null);
   const pipVideoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
-  const chunksRef = useRef<Blob[]>([]);
-  const timerRef = useRef<NodeJS.Timeout | null>(null);
-  const animationRef = useRef<number | null>(null);
-  const compositingActiveRef = useRef(false);
 
-  // Helper to process chunks into Blob for preview
+  // Recording chunks & state
+  const chunksRef = useRef<Blob[]>([]);
+  const mediaRecorderRef = useRef<MediaRecorder | null>(null);
+
+  // Timer hook
+  const { time: recordingTime, start: startTimer, stop: stopTimer, reset: resetTimer } = useRecordingTimer(() => stopRecording());
+
+  // Stream helpers
+  const getCameraStream = useGetCameraStream({ cameraFacing, isMobile, setShowRotateOverlay });
+  const getScreenStream = useGetScreenStream();
+
+  // Compositing
+  const { startCompositing, stopCompositing } = useCompositingLoop(canvasRef, pipVideoRef);
+
+  // Helper: process & save recorded blob/file
   const processRecordedBlob = useCallback((blob: Blob) => {
-    console.log("[Recording] processRecordedBlob - blob size:", blob.size, "type:", blob.type);
-    
-    // Set the blob for immediate preview
     setRecordedBlob(blob);
-    
-    // Also create a File object for submission data
     const videoFile = new File([blob], "video.webm", { type: blob.type });
     updateData({ videoBlob: videoFile });
-    
-    console.log("[Recording] processRecordedBlob - created File:", videoFile.size, "bytes");
   }, [updateData]);
 
-  // Define mediaRecorderOnStop at the top level
+  // Handle stop
   const mediaRecorderOnStop = useCallback(() => {
-    console.log("[Recording] mediaRecorderOnStop - chunks:", chunksRef.current.length);
-    
     if (chunksRef.current.length > 0) {
       const blob = new Blob(chunksRef.current, { type: 'video/webm' });
-      console.log("[Recording] mediaRecorderOnStop - created blob:", blob.size, "bytes");
-      
       processRecordedBlob(blob);
-      
-      if (videoRef.current) {
-        videoRef.current.srcObject = null;
-      }
-      if (pipVideoRef.current) {
-        pipVideoRef.current.srcObject = null;
-      }
-    } else {
-      console.error("[Recording] mediaRecorderOnStop - no chunks available");
+      if (videoRef.current) videoRef.current.srcObject = null;
+      if (pipVideoRef.current) pipVideoRef.current.srcObject = null;
     }
   }, [processRecordedBlob]);
 
+  // Stop recording flow
   const stopRecording = useCallback(() => {
-    console.log("[Recording] stopRecording called");
-    compositingActiveRef.current = false;
-    if (mediaRecorderRef.current && isRecording) {
-      console.log("[Recording] stopping MediaRecorder");
-      mediaRecorderRef.current.stop();
-      setIsRecording(false);
-      
-      if (timerRef.current) {
-        clearInterval(timerRef.current);
-        timerRef.current = null;
-      }
-      
-      if (animationRef.current) {
-        cancelAnimationFrame(animationRef.current);
-        animationRef.current = null;
-      }
-      
-      // Stop all streams
-      [cameraStream, screenStream].forEach(stream => {
-        if (stream) {
-          stream.getTracks().forEach(track => track.stop());
-        }
-      });
-      
-      setCameraStream(null);
-      setScreenStream(null);
-    }
-  }, [isRecording, cameraStream, screenStream]);
+    setIsRecording(false);
+    stopTimer();
+    stopCompositing();
+    [cameraStream, screenStream].forEach(stream => stream && stream.getTracks().forEach(track => track.stop()));
+    setCameraStream(null);
+    setScreenStream(null);
+    if (mediaRecorderRef.current) mediaRecorderRef.current.stop();
+  }, [cameraStream, screenStream, stopTimer, stopCompositing]);
 
+  // Start recording flow
   const startRecording = useCallback(async () => {
+    setError('');
+    setShowRotateOverlay(false);
+
+    let finalStream: MediaStream | null = null;
+    let localCameraStream: MediaStream | null = null;
+    let localScreenStream: MediaStream | null = null;
+
     try {
-      console.log('[Recording] Starting recording with mode:', recordingMode, 'cameraFacing:', cameraFacing);
-      setError('');
-      setShowRotateOverlay(false);
-      let finalStream: MediaStream | null = null;
-
       if (recordingMode === 'camera') {
-        const mediaStream = await navigator.mediaDevices.getUserMedia({
-          video: {
-            width: { ideal: 1280 },
-            height: { ideal: 720 },
-            facingMode: cameraFacing === 'front' ? 'user' : { exact: 'environment' }
-          },
-          audio: {
-            echoCancellation: true,
-            noiseSuppression: true
-          }
-        });
-
-        const videoTrack = mediaStream.getVideoTracks()[0];
-        if (isMobile && videoTrack) {
-          const settings = videoTrack.getSettings();
-          if (settings.width && settings.height && settings.height > settings.width) {
-            setShowRotateOverlay(true);
-            mediaStream.getTracks().forEach(track => track.stop());
-            return;
-          }
-        }
-        
-        setCameraStream(mediaStream);
-        finalStream = mediaStream;
-        
-        if (videoRef.current) {
-          videoRef.current.srcObject = mediaStream;
-        }
+        localCameraStream = await getCameraStream();
+        setCameraStream(localCameraStream);
+        finalStream = localCameraStream;
+        if (videoRef.current) videoRef.current.srcObject = localCameraStream;
       } else if (recordingMode === 'screen') {
-        const displayStream = await navigator.mediaDevices.getDisplayMedia({
-          video: {
-            width: { ideal: 1920 },
-            height: { ideal: 1080 }
-          },
-          audio: true
-        });
-        
-        setScreenStream(displayStream);
-        finalStream = displayStream;
-        
-        if (videoRef.current) {
-          videoRef.current.srcObject = displayStream;
-        }
+        localScreenStream = await getScreenStream();
+        setScreenStream(localScreenStream);
+        finalStream = localScreenStream;
+        if (videoRef.current) videoRef.current.srcObject = localScreenStream;
       } else if (recordingMode === 'both') {
-        const [displayStream, cameraStreamLocal] = await Promise.all([
-          navigator.mediaDevices.getDisplayMedia({
-            video: {
-              width: { ideal: 1920 },
-              height: { ideal: 1080 }
-            },
-            audio: true
-          }),
-          navigator.mediaDevices.getUserMedia({
-            video: {
-              width: { ideal: 320 },
-              height: { ideal: 240 },
-              facingMode: cameraFacing === 'front' ? 'user' : { exact: 'environment' }
-            },
-            audio: {
-              echoCancellation: true,
-              noiseSuppression: true
-            }
-          })
-        ]);
+        localScreenStream = await getScreenStream();
+        localCameraStream = await getCameraStream();
+        setScreenStream(localScreenStream);
+        setCameraStream(localCameraStream);
 
-        const cameraVideoTrack = cameraStreamLocal.getVideoTracks()[0];
-        if (isMobile && cameraVideoTrack) {
-          const settings = cameraVideoTrack.getSettings();
-          if (settings.width && settings.height && settings.height > settings.width) {
-            setShowRotateOverlay(true);
-            displayStream.getTracks().forEach(track => track.stop());
-            cameraStreamLocal.getTracks().forEach(track => track.stop());
-            return;
-          }
-        }
+        // Start compositing PiP/canvas
+        await startCompositing(localScreenStream, localCameraStream);
+        finalStream = canvasRef.current!.captureStream(30);
 
-        setScreenStream(displayStream);
-        setCameraStream(cameraStreamLocal);
-
-        // Set up canvas for compositing
-        const canvas = canvasRef.current!;
-        const ctx = canvas.getContext('2d')!;
-        canvas.width = 1920;
-        canvas.height = 1080;
-
-        // Create video elements for compositing
-        const screenVideo = document.createElement('video');
-        const cameraVideo = document.createElement('video');
-        
-        screenVideo.srcObject = displayStream;
-        cameraVideo.srcObject = cameraStreamLocal;
-        
-        await Promise.all([
-          new Promise(resolve => { screenVideo.onloadedmetadata = resolve; screenVideo.play(); }),
-          new Promise(resolve => { cameraVideo.onloadedmetadata = resolve; cameraVideo.play(); })
-        ]);
-
-        // Set up PiP preview
-        if (videoRef.current) {
-          videoRef.current.srcObject = displayStream;
-        }
-        if (pipVideoRef.current) {
-          pipVideoRef.current.srcObject = cameraStreamLocal;
-        }
-
-        compositingActiveRef.current = true;
-        console.log("[Recording] Starting compositing loop");
-
-        // Composite the streams
-        const drawFrame = () => {
-          if (!compositingActiveRef.current) {
-            console.log("[Recording] drawFrame: compositing ended");
-            return;
-          }
-          if (Date.now() % 1000 < 18) {
-            console.log("[Recording] drawFrame: compositing frame at", Date.now());
-          }
-          // Draw screen capture
-          ctx.drawImage(screenVideo, 0, 0, canvas.width, canvas.height);
-          
-          // Draw camera in corner (320x240 at bottom-right with 20px margin)
-          const pipWidth = 320;
-          const pipHeight = 240;
-          const margin = 20;
-          
-          ctx.drawImage(
-            cameraVideo,
-            canvas.width - pipWidth - margin,
-            canvas.height - pipHeight - margin,
-            pipWidth,
-            pipHeight
-          );
-          
-          animationRef.current = requestAnimationFrame(drawFrame);
-        };
-
-        drawFrame();
-        finalStream = canvas.captureStream(30);
-        
-        // Add audio from both streams
-        const audioTracks = [
-          ...displayStream.getAudioTracks(),
-          ...cameraStreamLocal.getAudioTracks()
-        ];
-        audioTracks.forEach(track => finalStream!.addTrack(track));
+        // Add all audio
+        [...localScreenStream.getAudioTracks(), ...localCameraStream.getAudioTracks()].forEach(track => {
+          finalStream!.addTrack(track);
+        });
+        if (videoRef.current) videoRef.current.srcObject = localScreenStream;
       }
 
-      if (!finalStream) {
-        return;
-      }
+      if (!finalStream) return;
 
-      const mimeType = MediaRecorder.isTypeSupported('video/webm;codecs=vp9') 
-        ? 'video/webm;codecs=vp9' 
-        : 'video/webm';
-
-      console.log('[Recording] Using mimeType:', mimeType);
-
-      const mediaRecorder = new MediaRecorder(finalStream, { mimeType });
-
-      mediaRecorderRef.current = mediaRecorder;
+      const mimeType = MediaRecorder.isTypeSupported('video/webm;codecs=vp9') ? 'video/webm;codecs=vp9' : 'video/webm';
+      const rec = new MediaRecorder(finalStream, { mimeType });
+      mediaRecorderRef.current = rec;
       chunksRef.current = [];
 
-      mediaRecorder.ondataavailable = (event) => {
-        console.log('[Recording] Data available:', event.data.size, 'bytes');
-        if (event.data.size > 0) {
-          chunksRef.current.push(event.data);
-        }
+      rec.ondataavailable = (event: BlobEvent) => {
+        if (event.data.size > 0) chunksRef.current.push(event.data);
       };
+      rec.onstop = mediaRecorderOnStop;
+      rec.start(1000);
 
-      mediaRecorder.onstop = mediaRecorderOnStop;
-
-      mediaRecorder.start(1000); // Record in 1-second intervals
-      // Timer and recordingTime logic
-      setRecordingTime(0);
-      timerRef.current = setInterval(() => {
-        setRecordingTime(prev => {
-          if (prev >= 120) { // 2 minutes max
-            stopRecording();
-            return 120;
-          }
-          return prev + 1;
-        });
-      }, 1000);
-
-      // For camera/screen only, set isRecording true here as before
-      if (recordingMode === 'camera' || recordingMode === 'screen') {
-        setIsRecording(true);
-      }
+      setIsRecording(true);
+      resetTimer();
+      startTimer();
     } catch (err) {
-      console.error('[Recording] Error starting recording:', err);
       setError('Could not access camera and/or screen. Please check your permissions.');
+      [localCameraStream, localScreenStream].forEach(stream => stream && stream.getTracks().forEach(track => track.stop()));
     }
-  }, [recordingMode, isMobile, cameraFacing, stopRecording, mediaRecorderOnStop]);
+  }, [recordingMode, getCameraStream, getScreenStream, startCompositing, startTimer, resetTimer, mediaRecorderOnStop]);
 
+  // Reset
   const resetRecording = useCallback(() => {
-    console.log("[Recording] resetRecording called");
     setRecordedBlob(null);
-    setRecordingTime(0);
+    resetTimer();
     updateData({ videoBlob: undefined });
-    
     if (videoRef.current) {
       videoRef.current.src = '';
       videoRef.current.srcObject = null;
     }
-    if (pipVideoRef.current) {
-      pipVideoRef.current.srcObject = null;
-    }
-    compositingActiveRef.current = false;
-  }, [updateData]);
+    if (pipVideoRef.current) pipVideoRef.current.srcObject = null;
+    stopCompositing();
+  }, [resetTimer, updateData, stopCompositing]);
 
+  // Play preview
   const playPreview = useCallback(() => {
-    console.log("[Recording] playPreview called");
     videoRef.current?.play();
   }, []);
 
   return {
-    // State
     isRecording,
     recordedBlob,
     recordingTime,
@@ -330,11 +157,9 @@ export const useRecording = ({ updateData, data }: UseRecordingProps) => {
     error,
     showRotateOverlay,
     cameraFacing,
-    // Refs
     videoRef,
     pipVideoRef,
     canvasRef,
-    // Actions
     startRecording,
     stopRecording,
     resetRecording,

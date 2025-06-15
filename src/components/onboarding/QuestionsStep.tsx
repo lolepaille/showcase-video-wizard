@@ -6,6 +6,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Lightbulb, Users, Rocket } from 'lucide-react';
 import type { SubmissionData } from '@/pages/Index';
+import VideoUploadOption from './VideoUploadOption';
 
 interface QuestionsStepProps {
   onNext: () => void;
@@ -49,6 +50,16 @@ const QuestionsStep: React.FC<QuestionsStepProps> = ({ onNext, onPrev, data, upd
         [questionId]: value
       }
     });
+  };
+
+  // Allow QuestionsStep to transition to review step if a video is uploaded
+  const handleVideoFile = (file: File | null) => {
+    if (file) {
+      updateData({ videoBlob: file });
+      // Simulate direct step to review. We need onNext twice: once to recording, once to review.
+      onNext(); // from questions -> recording
+      setTimeout(onNext, 50); // quickly to review; WAIT at least briefly for state to update
+    }
   };
 
   return (
@@ -114,16 +125,21 @@ const QuestionsStep: React.FC<QuestionsStepProps> = ({ onNext, onPrev, data, upd
             </div>
           </div>
 
-          <div className="flex justify-between pt-4">
-            <Button variant="outline" onClick={onPrev} className="px-8">
-              Back
-            </Button>
-            <Button 
-              onClick={onNext}
-              className="px-8 bg-gradient-to-r from-blue-600 to-red-600 hover:from-blue-700 hover:to-red-700"
-            >
-              Ready to Record
-            </Button>
+          <div className="flex flex-col md:flex-row justify-between items-center gap-4 pt-4">
+            <div className="flex-1 flex flex-row gap-3 w-full md:w-auto">
+              <Button variant="outline" onClick={onPrev} className="px-8">
+                Back
+              </Button>
+              <Button 
+                onClick={onNext}
+                className="px-8 bg-gradient-to-r from-blue-600 to-red-600 hover:from-blue-700 hover:to-red-700"
+              >
+                Ready to Record
+              </Button>
+            </div>
+            <div className="flex-1 w-full md:w-auto flex flex-row gap-3 justify-end">
+              <VideoUploadOption onVideoFile={handleVideoFile} />
+            </div>
           </div>
         </CardContent>
       </Card>
@@ -132,3 +148,4 @@ const QuestionsStep: React.FC<QuestionsStepProps> = ({ onNext, onPrev, data, upd
 };
 
 export default QuestionsStep;
+
